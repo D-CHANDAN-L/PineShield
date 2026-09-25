@@ -30,7 +30,8 @@ USER QUERY:
 Follow system instructions. Output ONLY valid raw JSON with "intent", "isError", and matching fields. Do NOT include markdown fences.
 `;
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey.trim()}`;
+  const model = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`;
 
   try {
     const geminiRes = await fetch(endpoint, {
