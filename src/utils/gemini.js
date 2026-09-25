@@ -1,7 +1,13 @@
 import { MASTER_ERROR_RECORDS, ERROR_TYPES } from '../data/sopRules.js';
 import { BANK_DIRECTORY } from '../data/bankDirectory.js';
+export { PINE_LABS_SYSTEM_PROMPT } from './geminiPrompt.js';
 
-export const PINE_LABS_SYSTEM_PROMPT = `
+// NOTE: The line below is intentionally removed — VITE_ prefix env vars are baked
+// into the JS bundle and visible to anyone in DevTools. The API key is now kept
+// exclusively on the server in api/gemini.js (Vercel serverless).
+
+/* placeholder so the export above is the only prompt reference */
+const _promptPlaceholder = `
 You are the official Pine Labs POS Sentinel Operations AI. You troubleshoot payment, terminal, and acquiring failures across Pine Labs SmartPOS devices (A920, E600, D210).
 
 YOU HAVE ACCESS TO THE ACTIVE MERCHANT CONTEXT:
@@ -291,49 +297,8 @@ export function matchStaticSop(userInput, merchantContext = {}) {
   };
 }
 
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-/**
- * Fetch wrapper with exponential backoff (3 attempts, 1s/2s/3s) retrying only on 503/429.
- */
-async function fetchWithRetry(url, options, maxRetries = 3) {
-  const delays = [1000, 2000, 3000];
-  let lastResponse = null;
-  let lastError = null;
-
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      const response = await fetch(url, options);
-      if (response.ok) {
-        return response;
-      }
-      lastResponse = response;
-
-      // Retry only on 503 (high demand) or 429 (rate limit)
-      if (response.status === 503 || response.status === 429) {
-        console.warn(`[Gemini API] Received ${response.status} on attempt ${attempt + 1}/${maxRetries}. Retrying in ${delays[attempt]}ms...`);
-        if (attempt < maxRetries - 1) {
-          await sleep(delays[attempt]);
-          continue;
-        }
-      }
-      return response;
-    } catch (err) {
-      lastError = err;
-      console.warn(`[Gemini API] Network fetch exception on attempt ${attempt + 1}/${maxRetries}:`, err);
-      if (attempt < maxRetries - 1) {
-        await sleep(delays[attempt]);
-        continue;
-      }
-    }
-  }
-
-  if (lastResponse) return lastResponse;
-  throw lastError || new Error("Gemini network request failed after retries");
-}
-
 export async function askGemini(userInput, merchantContext = {}) {
-  // 1. Check if input is obvious conversational greeting/gibberish before remote API call
+  // 1. Short-circuit obvious greetings before any network call
   if (isConversationalQuery(userInput)) {
     return {
       intent: "CONVERSATIONAL",
@@ -342,96 +307,45 @@ export async function askGemini(userInput, merchantContext = {}) {
     };
   }
 
-  // 2. Retrieve API key from localStorage or Vite env
-  const apiKey = (typeof window !== 'undefined' ? localStorage.getItem('PINELABS_GEMINI_KEY') : null) || import.meta.env.VITE_GEMINI_API_KEY;
-
-  if (!apiKey || apiKey.trim() === '' || apiKey.trim() === 'your_gemini_api_key_here') {
-    // If no key is set, use grounded SOP keyword lookup seamlessly
-    return matchStaticSop(userInput, merchantContext);
-  }
-
-  // 3. Prepare payload
-  const prompt = `
-CURRENT MERCHANT CONTEXT:
-- Store: ${merchantContext.storeName || 'Croma Electronics'} (${merchantContext.city || 'Bengaluru'})
-- Manager: ${merchantContext.managerName || 'Rajesh Kumar'}
-- POS ID: ${merchantContext.posId || 'POS_992144'}
-- Architecture: ${merchantContext.architecture || 'Non-Aggregator'}
-- Bound Acquirer: ${merchantContext.acquirer || 'HDFC Bank'}
-- Card TID: ${merchantContext.tid || 'TID_HDFC_9910'}
-
-USER QUERY:
-"${userInput}"
-
-Follow system instructions. Output ONLY valid raw JSON with "intent", "isError", and matching fields. Do NOT include markdown fences.
-`;
-
-  // 4. Call Google AI Studio REST API using strictly gemini-3.8-flash (GA September 2, 2026)
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey.trim()}`;
-
+  // 2. Call our own server-side proxy — the real Gemini API key lives there,
+  //    never in the browser bundle (no more VITE_GEMINI_API_KEY exposure).
   try {
-    const response = await fetchWithRetry(endpoint, {
+    const response = await fetch('/api/gemini', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        system_instruction: {
-          parts: [{ text: PINE_LABS_SYSTEM_PROMPT }]
-        },
-        contents: [
-          { role: 'user', parts: [{ text: prompt }] }
-        ],
-        generationConfig: {
-          temperature: 0.1,
-          response_mime_type: "application/json"
-        }
-      })
+      body: JSON.stringify({ userInput, merchantContext })
     });
 
     if (!response.ok) {
-      console.warn(`[Gemini API] Request ended with status ${response.status}. Activating resilient SOP fallback.`);
+      const errData = await response.json().catch(() => ({}));
+      // 503 means key not configured on server → graceful fallback
+      console.warn(`[Gemini Proxy] Status ${response.status}:`, errData.error);
       return matchStaticSop(userInput, merchantContext);
     }
 
-    const data = await response.json();
-    let text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    const parsed = await response.json();
 
-    if (!text) {
-      return matchStaticSop(userInput, merchantContext);
-    }
-
-    // Strip Markdown code fences (```json ... ```) before JSON.parse
-    text = text.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
-
-    try {
-      const parsed = JSON.parse(text);
-
-      // Verify intent classification
-      if (parsed.intent === 'CONVERSATIONAL' || parsed.isError === false) {
-        return {
-          intent: "CONVERSATIONAL",
-          isError: false,
-          reply: parsed.reply || "Pine Labs POS Sentinel is ready. Let me know if you experience any transaction or terminal issues."
-        };
-      }
-
+    if (parsed.intent === 'CONVERSATIONAL' || parsed.isError === false) {
       return {
-        intent: "DIAGNOSTIC",
-        isError: true,
-        errorIssue: parsed.errorIssue || "POS Incident",
-        reasonOfOccurrence: parsed.reasonOfOccurrence || "Deactivated on acquiring switch",
-        solution: parsed.solution || "Contact acquiring bank helpdesk",
-        contactName: parsed.contactName || "Acquiring Bank Helpdesk",
-        phone: parsed.phone || "1800 202 6161",
-        email: parsed.email || "pos.helpdesk@bank.in",
-        isBankDeflection: typeof parsed.isBankDeflection === 'boolean' ? parsed.isBankDeflection : true
+        intent: "CONVERSATIONAL",
+        isError: false,
+        reply: parsed.reply || "Pine Labs POS Sentinel is ready. Let me know if you experience any transaction or terminal issues."
       };
-    } catch (jsonErr) {
-      console.warn("[Gemini API] JSON parse failed, falling back to static SOP match:", jsonErr);
-      return matchStaticSop(userInput, merchantContext);
     }
+
+    return {
+      intent: "DIAGNOSTIC",
+      isError: true,
+      errorIssue: parsed.errorIssue || "POS Incident",
+      reasonOfOccurrence: parsed.reasonOfOccurrence || "Deactivated on acquiring switch",
+      solution: parsed.solution || "Contact acquiring bank helpdesk",
+      contactName: parsed.contactName || "Acquiring Bank Helpdesk",
+      phone: parsed.phone || "1800 202 6161",
+      email: parsed.email || "pos.helpdesk@bank.in",
+      isBankDeflection: typeof parsed.isBankDeflection === 'boolean' ? parsed.isBankDeflection : true
+    };
   } catch (err) {
-    console.warn("[Gemini API] Network/system failure handled gracefully:", err);
-    // Never show a raw error — fall back to static SOP keyword match
+    console.warn("[Gemini Proxy] Network/system failure — activating SOP fallback:", err);
     return matchStaticSop(userInput, merchantContext);
   }
 }
