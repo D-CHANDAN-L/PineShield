@@ -52,7 +52,6 @@ export const BANK_ESCALATION_DIRECTORY = {
   "Pine Labs Internal": {
     deskName: "Pine Labs Plutus Support Desk",
     supportPhone: "0120-4033600",
-    tollFree: "1800 258 6609",
     supportEmail: "plutus.support@pinelabs.com",
     l2TechOpsEmail: "cplus_acq_l2techops@pinelabs.com",
     leadContact: "L2 TechOps Switch Team"

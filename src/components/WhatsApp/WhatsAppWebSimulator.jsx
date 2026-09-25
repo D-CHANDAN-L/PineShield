@@ -96,7 +96,7 @@ export default function WhatsAppWebSimulator() {
             <div className="flex-1 min-w-0">
               <div className="flex justify-between items-baseline">
                 <span className="text-xs font-bold text-[#E9EDEF] truncate flex items-center gap-1">
-                  Pine Labs POS Sentinel
+                  PineShield
                 </span>
                 <span className="text-[9px] text-[#8696A0]">
                   {lastAlert ? lastAlert.timestamp : "Just now"}
@@ -138,7 +138,7 @@ export default function WhatsAppWebSimulator() {
             </div>
             <div>
               <div className="flex items-center space-x-1">
-                <span className="text-xs font-bold text-[#E9EDEF]">Pine Labs POS Sentinel</span>
+                <span className="text-xs font-bold text-[#E9EDEF]">PineShield</span>
                 <BadgeCheck className="w-3.5 h-3.5 text-[#00A884] fill-[#00A884]"/>
               </div>
               <div className="text-[9.5px] text-[#00A884] flex items-center gap-1">

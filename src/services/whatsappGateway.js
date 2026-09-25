@@ -1,5 +1,5 @@
 /**
- * Pine Labs POS Sentinel — Universal WhatsApp Dispatch Engine
+ * PineShield — Universal WhatsApp Dispatch Engine
  * Supports:
  * 1. Twilio WhatsApp API (Company Official Sender)
  * 2. Green-API / UltraMsg (Personal / Store Number Instance)
@@ -170,7 +170,7 @@ export async function handleWhatsAppDispatch(reqBody) {
   // 4. Dev / Mock Graceful Mode (Zero Friction)
   console.log(`
 ================================================================================
-⚡ [PINE LABS POS SENTINEL] AUTOMATED BACKGROUND WHATSAPP DISPATCH
+⚡ [PINESHIELD] AUTOMATED BACKGROUND WHATSAPP DISPATCH
 --------------------------------------------------------------------------------
 Mode:       Dev / Mock Graceful Automated Dispatch (Zero Friction)
 Recipient:  +${cleanTo}

@@ -1,5 +1,5 @@
 /**
- * Pine Labs POS Sentinel — Local Grounded Fallback Knowledge Base
+ * PineShield — Local Grounded Fallback Knowledge Base
  * Mirrors the exact Gemini SOP grounding rules extracted from:
  * 1. Errors_Issue_and_their_resolution_steps.xlsx
  * 2. Key_RT_Pain_Points___SOP.xlsx
@@ -310,23 +310,37 @@ export function getLocalFallbackTriage(userQuery, activeContext = {}) {
     };
   }
 
-  // 15. AMEX: Term Inactive-Amex / OptBlue
-  if (q.includes("amex") || q.includes("american express") || q.includes("optblue")) {
-    return {
-      errorIdentified: "Term Inactive-Amex",
-      category: "BANK_TID",
-      reasonOfOccurrence: "TID deactivated / Amex card scheme unconfigured on acquiring terminal profile.",
-      solution: "Check if OptBlue is enabled on POS (ICICI, YES Bank, Kotak, SBI support OptBlue without separate Amex TID). For other banks, route to Bank RM or pass to CS VAS for Amex Agg Onboarding post-KYC.",
-      appliedRule: "Rule 3 (Amex Setup)",
-      actionContact: amexInfo,
-      isBankDeflection: true,
-      prefilledEmail: {
-        to: amexInfo.email,
-        subject: `Amex Scheme Provisioning Request_${storeName}_${posId}`,
-        body: `Dear Amex Merchant Services,\n\nPlease provision American Express card acceptance on POS ${posId} (TID: ${tid}) at ${storeName}.\n\nManager: ${activeContext.managerName} (${activeContext.managerPhone})`
-      },
-      _engine: "local-grounded-sop"
-    };
+  // 15. Term Inactive-Amex (Option A: Same bucket as Contact VI / TID NOT PRESENT - Acquiring Bank for Non-Agg, Pine Labs for Agg)
+  if (q.includes("term inactive amex") || q.includes("inactive amex") || q.includes("inactive-amex")) {
+    if (isAggregator) {
+      return {
+        errorIdentified: "Term Inactive-Amex",
+        category: "AGGREGATOR_GATEWAY",
+        reasonOfOccurrence: "TID deactivated on acquiring switch",
+        solution: "Pine Labs is the master merchant. Internal L2 priority ticket logged to re-route switch and re-bind terminal TID.",
+        appliedRule: "Rule 2 (Pine Labs Aggregator)",
+        actionContact: plutusInfo,
+        isBankDeflection: false,
+        prefilledEmail: null,
+        _engine: "local-grounded-sop"
+      };
+    } else {
+      return {
+        errorIdentified: "Term Inactive-Amex",
+        category: "BANK_TID",
+        reasonOfOccurrence: "TID deactivated on acquiring switch",
+        solution: "Merchant should contact Acquiring bank",
+        appliedRule: "Rule 1 (Bank Deflect)",
+        actionContact: bankInfo,
+        isBankDeflection: true,
+        prefilledEmail: {
+          to: bankInfo.email,
+          subject: `Urgent: Terminal TID Reactivation Required_${storeName}_${posId}`,
+          body: `Dear ${bankInfo.name},\n\nOur terminal ${posId} (TID: ${tid}) received 'Term Inactive-Amex'. Please verify and reactivate our TID on your switch.\n\nMerchant: ${storeName}\nCity: ${activeContext.city || 'Bangalore'}`
+        },
+        _engine: "local-grounded-sop"
+      };
+    }
   }
 
   // No match found — return null (never generate fake mock bank deactivation cards for arbitrary text)

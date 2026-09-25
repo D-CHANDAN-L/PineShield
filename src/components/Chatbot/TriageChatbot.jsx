@@ -80,14 +80,14 @@ export default function TriageChatbot() {
           </div>
           <div>
             <div className="flex items-center space-x-1.5">
-              <h3 className="text-xs font-bold text-slate-900 dark:text-white">POS Sentinel Operations AI</h3>
+              <h3 className="text-xs font-bold text-slate-900 dark:text-white">PineShield Operations AI</h3>
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-[10px] font-mono px-2 py-0.2 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                 {currentProfile.posId} • {currentProfile.architecture}
               </span>
             </div>
             <p className="text-[10px] text-slate-500 dark:text-slate-400">
-              Dual-Engine Triage: Deterministic Fast-Path (&lt;5ms) + Gemini 2.5 Flash Grounding
+              POS Incident Resolution Assistant
             </p>
           </div>
         </div>
@@ -148,13 +148,9 @@ export default function TriageChatbot() {
                           {msg.isGemini || msg.engine?.includes("gemini") ? (
                             <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 flex items-center gap-1">
                               <Sparkles className="w-2.5 h-2.5 text-purple-500" />
-                              Gemini 2.5 Flash
+                              AI Diagnostic
                             </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                              ⚡ Local Fast-Path (&lt;5ms)
-                            </span>
-                          )}
+                          ) : null}
                         </div>
                       </div>
 

@@ -26,7 +26,7 @@ Please reactivate or re-whitelist this Terminal ID on your acquiring switch to r
 
 Regards,
 ${storeData?.managerName || 'Store Operations'}
-Store Operations | Powered by Pine Labs POS Sentinel`;
+Store Operations | Powered by PineShield`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(`To: ${recipientEmail}\nSubject: ${subject}\n\n${emailBody}`);

@@ -1,5 +1,6 @@
 // src/hooks/useRouter.js
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useMemo, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 export const ROUTES = {
   SIMULATOR: 'simulator',
@@ -7,83 +8,68 @@ export const ROUTES = {
   WHATSAPP: 'whatsapp'
 };
 
-function parseHashLocation() {
-  if (typeof window === 'undefined') {
-    return { route: ROUTES.SIMULATOR, params: {} };
-  }
-
-  const rawHash = (window.location.hash || '').replace(/^#\/?/, '');
-  const [routePart, queryPart] = rawHash.split('?');
-  const cleanRoute = (routePart || '').toLowerCase().trim();
-
-  const validRoute = Object.values(ROUTES).includes(cleanRoute)
-    ? cleanRoute
-    : ROUTES.SIMULATOR;
-
-  const params = {};
-  if (queryPart) {
-    try {
-      const searchParams = new URLSearchParams(queryPart);
-      for (const [key, value] of searchParams.entries()) {
-        params[key] = value;
-      }
-    } catch (e) {
-      console.warn("Failed to parse query params:", e);
-    }
-  }
-
-  return { route: validRoute, params };
-}
-
 export function useRouter() {
-  const [routeState, setRouteState] = useState(() => parseHashLocation());
+  const location = useLocation();
+  const reactRouterNavigate = useNavigate();
 
-  useEffect(() => {
-    const handleHashChange = () => {
-      setRouteState(parseHashLocation());
-    };
+  // Parse current route from pathname (e.g. "/simulator" -> "simulator", "/" -> "simulator")
+  const currentRoute = useMemo(() => {
+    const rawSegment = (location.pathname || '')
+      .replace(/^\/+/, '')
+      .split('/')[0]
+      ?.toLowerCase()
+      .trim();
 
-    window.addEventListener('hashchange', handleHashChange);
-    window.addEventListener('popstate', handleHashChange);
-
-    // Initial check: if no hash exists on first load, establish #simulator without overriding existing deep link
-    const currentParsed = parseHashLocation();
-    if (!window.location.hash || window.location.hash === '#' || window.location.hash === '#/') {
-      window.location.hash = `#${ROUTES.SIMULATOR}`;
-      setRouteState({ route: ROUTES.SIMULATOR, params: {} });
-    } else {
-      setRouteState(currentParsed);
+    if (rawSegment && Object.values(ROUTES).includes(rawSegment)) {
+      return rawSegment;
     }
+    return ROUTES.SIMULATOR;
+  }, [location.pathname]);
 
-    return () => {
-      window.removeEventListener('hashchange', handleHashChange);
-      window.removeEventListener('popstate', handleHashChange);
-    };
-  }, []);
-
-  const navigate = useCallback((route, queryParams = {}) => {
-    const validRoute = Object.values(ROUTES).includes(route) ? route : ROUTES.SIMULATOR;
-
-    let targetHash = `#${validRoute}`;
-    if (queryParams && typeof queryParams === 'object' && Object.keys(queryParams).length > 0) {
+  // Parse query parameters from location.search (e.g. "?error=NO_RESPONSE")
+  const queryParams = useMemo(() => {
+    const params = {};
+    if (location.search) {
       try {
-        const search = new URLSearchParams(queryParams).toString();
-        if (search) targetHash += `?${search}`;
-      } catch (e) {}
+        const searchParams = new URLSearchParams(location.search);
+        for (const [key, value] of searchParams.entries()) {
+          params[key] = value;
+        }
+      } catch (err) {
+        console.warn('[PineShield Router] Query parse warning:', err);
+      }
+    }
+    return params;
+  }, [location.search]);
+
+  // If on bare root "/", immediately normalize to "/simulator" without breaking back/forward history
+  useEffect(() => {
+    const path = (location.pathname || '').replace(/\/+$/, '');
+    if (!path || path === '') {
+      reactRouterNavigate(`/${ROUTES.SIMULATOR}`, { replace: true });
+    }
+  }, [location.pathname, reactRouterNavigate]);
+
+  // Navigate callback matching the legacy interface: navigate(route, queryParams)
+  const navigate = useCallback((route, params = {}) => {
+    const targetRoute = Object.values(ROUTES).includes(route)
+      ? route
+      : ROUTES.SIMULATOR;
+
+    let targetPath = `/${targetRoute}`;
+    if (params && typeof params === 'object' && Object.keys(params).length > 0) {
+      const search = new URLSearchParams(params).toString();
+      if (search) {
+        targetPath += `?${search}`;
+      }
     }
 
-    if (window.location.hash !== targetHash) {
-      window.location.hash = targetHash;
-    }
-    setRouteState({
-      route: validRoute,
-      params: queryParams || {}
-    });
-  }, []);
+    reactRouterNavigate(targetPath);
+  }, [reactRouterNavigate]);
 
   return {
-    currentRoute: routeState.route || ROUTES.SIMULATOR,
-    queryParams: routeState.params || {},
+    currentRoute,
+    queryParams,
     navigate,
     ROUTES
   };

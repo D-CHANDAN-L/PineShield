@@ -1,5 +1,5 @@
 /**
- * Pine Labs POS Sentinel — Fully Automated WhatsApp Dispatch Engine
+ * PineShield — Fully Automated WhatsApp Dispatch Engine
  * Dispatches incident resolution messages automatically in the background
  * via API endpoint (POST /api/send-whatsapp) to configured phone number.
  */
@@ -9,8 +9,8 @@ export function formatWhatsAppMessage(alertData = {}) {
     storeName = "Croma Electronics - Indiranagar",
     posId = "POS_992144",
     errorIssue = "TID NOT PRESENT",
-    reasonOfOccurrence = "TID deactivated on acquiring host switch.",
-    solution = "Merchant should contact Acquiring bank. Pine Labs support cannot unblock bank-owned TIDs.",
+    reasonOfOccurrence = "TID deactivated on acquiring switch",
+    solution = "Merchant should contact Acquiring bank",
     contactName: directContact,
     deflectionTarget,
     targetEntity,
@@ -21,31 +21,53 @@ export function formatWhatsAppMessage(alertData = {}) {
     email: directEmail,
     caseRef,
     ticketRef,
-    caseId
+    caseId,
+    timestamp: directTimestamp,
+    noContactNeeded,
+    requiresRetryFirst
   } = alertData;
 
   const contactName = directContact || deflectionTarget || targetEntity || "HDFC Bank Merchant Helpdesk";
-  const bankPhone = directBankPhone || directPhone || bankTollFree || "1800 202 6161 / 1860 267 6161 / 1800 258 3838";
-  const bankEmail = directBankEmail || directEmail || "pos.helpdesk@hdfc.bank.in";
   const rawRef = caseId || ticketRef || caseRef || `PL-AUTO-${Math.floor(10000 + Math.random() * 90000)}`;
   const cleanCaseId = String(rawRef).replace(/^#+/, '');
+  const timestamp = directTimestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  return `🚨 *Pine Labs POS Alert*
+  // Normalize phone numbers to an array so multiple numbers render one per line under "Phone:"
+  const rawPhone = directPhone || directBankPhone || bankTollFree;
+  let phoneList = [];
+  if (Array.isArray(rawPhone)) {
+    phoneList = rawPhone.map(p => String(p).trim()).filter(Boolean);
+  } else if (typeof rawPhone === 'string') {
+    phoneList = rawPhone.split(/\s*[\/\n]\s*/).map(p => p.trim()).filter(Boolean);
+  }
+
+  const email = directBankEmail || directEmail || "pos.helpdesk@hdfc.bank.in";
+
+  let actionSection = "";
+  if (noContactNeeded) {
+    actionSection = "No action required — this will resolve automatically.";
+  } else if (requiresRetryFirst) {
+    actionSection = "Please retry the transaction as advised above.";
+  } else {
+    if (phoneList.length === 0) {
+      phoneList = ["1800 202 6161"];
+    }
+    const phoneLines = phoneList.map(p => `Phone: ${p}`).join('\n');
+    actionSection = `Please contact:\n${contactName}\n${phoneLines}\nEmail: ${email}`;
+  }
+
+  return `*Pine Labs POS Alert*
 Store: ${storeName} | POS: ${posId}
-----------------------------------------
-📌 *PROBLEM:*
-Error: ${errorIssue}
+
+Issue: ${errorIssue}
 Reason: ${reasonOfOccurrence}
 
-🛠️ *SOLUTION:*
-${solution}
+Resolution: ${solution}
 
-📞 *WHOM TO CONTACT:*
-Contact: ${contactName}
-Phone: ${bankPhone}
-Email: ${bankEmail}
-----------------------------------------
-_Ref: #${cleanCaseId} | Powered by Pine Labs POS Sentinel_`;
+${actionSection}
+
+Ref: #${cleanCaseId}
+${timestamp}`;
 }
 
 /**
@@ -99,4 +121,3 @@ export async function sendAutomatedWhatsApp({ to, message, gateway = 'auto', met
  * Backward compatibility alias: replaces manual wa.me with background automated dispatch.
  */
 export const openRealWhatsApp = sendAutomatedWhatsApp;
-

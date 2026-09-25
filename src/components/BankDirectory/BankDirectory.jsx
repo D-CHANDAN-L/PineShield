@@ -30,9 +30,10 @@ export default function BankDirectory() {
 
   const directoryEntries = Object.entries(BANK_DIRECTORY).filter(([key, bank]) => {
     const term = searchTerm.toLowerCase();
+    const phoneList = Array.isArray(bank.phone) ? bank.phone : Array.isArray(bank.tollFree) ? bank.tollFree : [bank.phone || bank.tollFree || ''];
     const matchesSearch = 
       bank.bankName.toLowerCase().includes(term) ||
-      (bank.tollFree && bank.tollFree.toLowerCase().includes(term)) ||
+      phoneList.some(p => String(p).toLowerCase().includes(term)) ||
       (bank.email && bank.email.toLowerCase().includes(term)) ||
       key.toLowerCase().includes(term);
 
@@ -160,31 +161,36 @@ export default function BankDirectory() {
 
                 {/* Contact Rows */}
                 <div className="space-y-2 text-xs font-mono mb-4">
-                  {/* Toll-Free */}
-                  {bank.tollFree && (
-                    <div className="bg-slate-50 dark:bg-[#0B0F17] p-2.5 rounded-xl border border-slate-200 dark:border-[#243044] flex justify-between items-center">
-                      <div>
-                        <span className="text-[9px] text-slate-500 block uppercase font-sans font-bold">
-                          Toll-Free Support
-                        </span>
-                        <span className="font-bold text-emerald-600 dark:text-emerald-400 text-[11.5px]">{bank.tollFree}</span>
-                      </div>
-                      <div className="flex items-center space-x-1.5">
-                        <button
-                          onClick={() => handleCopy(bank.tollFree, `${key}-tollfree`)}
-                          className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white transition"
-                          title="Copy number"
-                        >
-                          {copiedKey === `${key}-tollfree` ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                        </button>
-                        <a
-                          href={`tel:${bank.tollFree.split(' ')[0]}`}
-                          className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:text-white transition"
-                          title="Direct Dial"
-                        >
-                          <PhoneCall className="w-3.5 h-3.5" />
-                        </a>
-                      </div>
+                  {/* Toll-Free / Phone Numbers */}
+                  {((bank.phone && bank.phone.length > 0) || bank.tollFree) && (
+                    <div className="bg-slate-50 dark:bg-[#0B0F17] p-2.5 rounded-xl border border-slate-200 dark:border-[#243044] space-y-2">
+                      <span className="text-[9px] text-slate-500 block uppercase font-sans font-bold">
+                        Helpline / Toll-Free Support
+                      </span>
+                      {(Array.isArray(bank.phone) ? bank.phone : Array.isArray(bank.tollFree) ? bank.tollFree : [bank.tollFree || bank.phone]).map((numStr, pIdx) => {
+                        const cleanNum = String(numStr).split('—')[0].split('(')[0].trim();
+                        return (
+                          <div key={pIdx} className="flex justify-between items-center pt-1 border-t border-slate-200/50 dark:border-slate-800/50 first:border-0 first:pt-0">
+                            <span className="font-bold text-emerald-600 dark:text-emerald-400 text-[11.5px] font-mono">{numStr}</span>
+                            <div className="flex items-center space-x-1.5">
+                              <button
+                                onClick={() => handleCopy(cleanNum, `${key}-phone-${pIdx}`)}
+                                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white transition"
+                                title="Copy number"
+                              >
+                                {copiedKey === `${key}-phone-${pIdx}` ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                              </button>
+                              <a
+                                href={`tel:${cleanNum.replace(/[^0-9+]/g, '')}`}
+                                className="p-1.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:text-white transition"
+                                title="Direct Dial"
+                              >
+                                <PhoneCall className="w-3.5 h-3.5" />
+                              </a>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 

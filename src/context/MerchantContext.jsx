@@ -80,15 +80,12 @@ export const MerchantProvider = ({ children }) => {
   const [activeSimulatedError, setActiveSimulatedError] = useState(null);
   const [printedReceipt, setPrintedReceipt] = useState(null);
 
-  // Chat State pre-bound to currentProfile with zero POS ID intake prompts
-  const [chatMessages, setChatMessages] = useState([
-    {
-      id: "init_1",
-      sender: "agent",
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      text: `👋 Active Session Pre-Bound: Monitoring POS #${currentProfile.posId} (${currentProfile.modelBadge} • ${currentProfile.acquirer}) for ${currentProfile.managerName}. Type any error or pick a category below.`
-    }
-  ]);
+  // Chat State pre-bound to currentProfile with zero POS ID intake prompts (clean empty landing state)
+  const [chatMessages, setChatMessages] = useState([]);
+
+  // Transient Toast Notification on Context / Profile Switch
+  const [contextToast, setContextToast] = useState(null);
+  const contextToastTimerRef = useRef(null);
 
   // WhatsApp State
   const [whatsAppMessages, setWhatsAppMessages] = useState([]);
@@ -129,15 +126,15 @@ export const MerchantProvider = ({ children }) => {
       setCustomPhoneNumberState(target.managerPhone);
     }
 
-    // Rebind chat immediately without prompting for POS ID
-    setChatMessages([
-      {
-        id: `init_${Date.now()}`,
-        sender: "agent",
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        text: `👋 Context switched to ${target.managerName} at ${target.storeName}. Pre-bound to POS #${target.posId} (${target.modelBadge} • ${target.acquirer}). Ready for instant zero-touch diagnosis.`
-      }
-    ]);
+    // Set transient toast notification (auto-dismiss after 3.5s) instead of pushing a chat bubble
+    const posLabel = target.posId.startsWith('POS_') ? target.posId : `POS_${target.posId.replace('POS-', '')}`;
+    setContextToast(`Context switched to ${target.managerName} at ${target.storeName} (${target.architecture} • ${target.acquirer} • ${posLabel})`);
+    if (contextToastTimerRef.current) {
+      clearTimeout(contextToastTimerRef.current);
+    }
+    contextToastTimerRef.current = setTimeout(() => {
+      setContextToast(null);
+    }, 3500);
 
     trackGTMEvent('demo_profile_switched', {
       profileId: target.profileId,
@@ -225,11 +222,14 @@ export const MerchantProvider = ({ children }) => {
       appliedRuleId: resolvedRuleId,
       deflectionTarget: targetDeflection,
       contactName: targetDeflection,
+      phone: targetPhoneStr,
       bankTollFree: targetPhoneStr,
       bankPhone: targetPhoneStr,
       bankEmail: targetEmailStr,
       caseRef: caseReference,
-      ticketRef: caseReference
+      ticketRef: caseReference,
+      noContactNeeded: Boolean(sopAuthority.noContactNeeded || errorRecordOrData?.noContactNeeded),
+      requiresRetryFirst: Boolean(sopAuthority.requiresRetryFirst || errorRecordOrData?.requiresRetryFirst)
     });
 
     const newAlert = {
@@ -252,6 +252,8 @@ export const MerchantProvider = ({ children }) => {
       appliedRule: resolvedRule,
       appliedRuleId: resolvedRuleId,
       deflectionTarget: targetDeflection,
+      contactName: targetDeflection,
+      phone: targetPhoneStr,
       bankTollFree: targetPhoneStr,
       bankHelpline: targetPhoneStr,
       bankAuth24x7: bankDetails?.auth24x7 || null,
@@ -262,7 +264,9 @@ export const MerchantProvider = ({ children }) => {
       ticketRef: caseReference,
       isResolved: false,
       dispatchStatus: 'Sending via API Gateway...',
-      deliveryMode: gatewayMode
+      deliveryMode: gatewayMode,
+      noContactNeeded: Boolean(sopAuthority.noContactNeeded || errorRecordOrData?.noContactNeeded),
+      requiresRetryFirst: Boolean(sopAuthority.requiresRetryFirst || errorRecordOrData?.requiresRetryFirst)
     };
 
     setWhatsAppMessages(prev => [newAlert, ...prev]);
@@ -401,7 +405,7 @@ export const MerchantProvider = ({ children }) => {
     return newTicket;
   };
 
-  // Dual-Engine Triage Processor (Deterministic SOP Fast-Path + Deep-Path Gemini 3.8 Flash)
+  // Dual-Engine Triage Processor (Deterministic SOP + Gemini 3.8 Flash)
   const processTriageDiagnosis = async (queryText) => {
     const q = (queryText || "").trim();
     if (!q) return null;
@@ -412,7 +416,7 @@ export const MerchantProvider = ({ children }) => {
         id: `agt_${Date.now()}`,
         sender: "agent",
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        text: "Hello! Pine Labs POS Sentinel is online. Let me know if your terminal experiences any transaction failure or error code.",
+        text: "Hello! PineShield is online. Let me know if your terminal experiences any transaction failure or error code.",
         isConversational: true
       };
       setChatMessages(prev => [...prev, agentMsg]);
@@ -436,10 +440,13 @@ export const MerchantProvider = ({ children }) => {
         reasonOfOccurrence: sopResult.reasonOfOccurrence,
         solution: sopResult.solution,
         contactName: sopResult.contactName,
+        phone: sopResult.phone,
         bankPhone: sopResult.phone,
         bankEmail: sopResult.email,
         caseRef: ticketRef,
-        ticketRef: ticketRef
+        ticketRef: ticketRef,
+        noContactNeeded: sopResult.noContactNeeded,
+        requiresRetryFirst: sopResult.requiresRetryFirst
       });
 
       const agentMsg = {
@@ -590,10 +597,14 @@ export const MerchantProvider = ({ children }) => {
           appliedRuleId: appliedRuleId,
           appliedRule: appliedRule,
           deflectionTarget: deflectionTarget,
+          contactName: deflectionTarget,
+          phone: bankDetails?.tollFree,
           bankTollFree: bankDetails?.tollFree,
           bankEmail: bankDetails?.email,
           caseRef: ticketRef,
-          ticketRef: ticketRef
+          ticketRef: ticketRef,
+          noContactNeeded: Boolean(geminiResult.noContactNeeded),
+          requiresRetryFirst: Boolean(geminiResult.requiresRetryFirst)
         });
 
         const agentMsg = {
@@ -778,7 +789,9 @@ export const MerchantProvider = ({ children }) => {
     setGatewayMode,
     isDispatchingWhatsApp,
     lastDispatchResult,
-    resetTerminal
+    resetTerminal,
+    contextToast,
+    setContextToast
   };
 
   return (

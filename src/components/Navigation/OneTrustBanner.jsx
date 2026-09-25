@@ -56,7 +56,7 @@ export default function OneTrustBanner() {
           </div>
 
           <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-2 leading-relaxed">
-            Pine Labs POS Sentinel utilizes essential cookies, GTM event telemetry, and VWO optimization layers 
+            PineShield utilizes essential cookies, GTM event telemetry, and VWO optimization layers 
             to monitor POS terminal uptime and prevent retail checkout disruption.
           </p>
 

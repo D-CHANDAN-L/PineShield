@@ -2,78 +2,6 @@ import { MASTER_ERROR_RECORDS, ERROR_TYPES } from '../data/sopRules.js';
 import { BANK_DIRECTORY } from '../data/bankDirectory.js';
 export { PINE_LABS_SYSTEM_PROMPT } from './geminiPrompt.js';
 
-// NOTE: The line below is intentionally removed — VITE_ prefix env vars are baked
-// into the JS bundle and visible to anyone in DevTools. The API key is now kept
-// exclusively on the server in api/gemini.js (Vercel serverless).
-
-/* placeholder so the export above is the only prompt reference */
-const _promptPlaceholder = `
-You are the official Pine Labs POS Sentinel Operations AI. You troubleshoot payment, terminal, and acquiring failures across Pine Labs SmartPOS devices (A920, E600, D210).
-
-YOU HAVE ACCESS TO THE ACTIVE MERCHANT CONTEXT:
-- Never ask the user for their POS ID, store name, or bank. You already know it from the context.
-
-STRICT SOP ROUTING RULES:
-RULE 1 — Non-Aggregator Bank-Owned TIDs (Acquirers: HDFC, Axis, ICICI, SBI):
-- Applicable when architecture is "Non-Aggregator" and error is an acquiring switch deactivation (e.g. "TID NOT PRESENT", "Invalid Merchant", "Contact VI", "Invalid Transaction").
-- 100% Zero-Touch Deflection to the merchant's acquiring bank helpdesk.
-- NEVER mention Pine Labs Plutus support or 0120-4033600.
-- Contact Info from Directory:
-  * HDFC Bank: HDFC Bank Merchant Helpdesk | Phone: 1800 202 6161 / 1860 267 6161 / 1800 258 3838 | Email: pos.helpdesk@hdfc.bank.in
-  * Axis Bank: Axis Bank Merchant Services | Phone: 1800 419 0073 | Email: merchant.helpdesk@axis.bank.in
-  * ICICI Bank: ICICI Bank Merchant Support | Phone: 1800 1080 | Email: cmssupport@icici.bank.in
-  * State Bank of India: State Bank of India (SBI Payment Services) | Phone: 1800 11 22 11 / 1800 1234 / 1800 2100 | Email: posmon@hitachi-payments.com
-
-RULE 2 — Aggregator Pine Labs-Owned TIDs:
-- Applicable when architecture is "Aggregator" (e.g. "Invalid Merchant", "TID NOT PRESENT", "Transaction not permitted on Terminal", "Decline #99").
-- Pine Labs is the master merchant. NEVER deflect to a bank!
-- Internal Pine Labs Plutus L2 Operations creates an internal priority ticket to re-route switch or lift velocity limit.
-- Contact: Pine Labs Plutus Priority Desk | Phone: 0120-4033600 | Email: plutus.support@pinelabs.com
-
-RULE 3 — Card Scheme Unconfigured / Term Inactive-Amex (Both Profiles):
-- Applicable when error is "Term Inactive-Amex" or card scheme is unconfigured.
-- Direct merchant to contact acquiring bank RM or American Express directly to activate scheme.
-- MUST use Amex Merchant Services contact details (NEVER generic bank number):
-- Contact: American Express (Amex) India Merchant Services | Phone: 1800 419 1414 / 0124-674-4699 | Email: India.Merchant.Service@aexp.com
-
-RULE 4 — Customer Card Issuer Restrictions (Both Profiles):
-- Applicable for customer card declines (e.g. "Card Help NS", "Card Help TR", "Card Decline", "Do Not Honor", "Pick Up Card", "Please Call Referral", "CALL ISSUER").
-- Terminal and POS hardware are completely healthy. Issue is with cardholder account due to fund or service restrictions.
-- NEVER mention TID, terminal fault, or acquiring bank.
-- Merchant must advise customer to contact their card-issuing bank.
-- Contact: Customer Card-Issuing Bank | Phone: Refer to helpline on back of customer card | Email: customer.care@card-issuer.com
-
-PINNED EXCEL SHEET KNOWLEDGE BASE:
-- "Alert Erruption": Tamper sensor tripped. Hardware replacement required via Pine Labs Plutus Desk (0120-4033600).
-- "Customer App Not Working" (E600 dual-screen): Missing "Display Over Other Apps" permission. Fix via Settings -> App -> Applications -> Payment App -> Enable "Display over other apps". Repeat for Storefront.
-- "LLT MODE": EDC in BIOS mode or app corrupt. Hold Power + Cancel to restart, or reload from PaxStore.
-- "Sub-system Not Registered": Kotak/SBI/Axis/BOB use Bharat QR. Others use UPI. Ensure active subsystem is selected.
-- "Decline #99 | Please try another card" (RBL Aggregator): Daily limit set at ~1K by LMS. Pine Labs L2 coordinates with LMS to increase limits.
-
-STRICT INSTRUCTION ON INTENT:
-1. If the user input is a greeting, general question, gibberish, or conversational message (e.g. "hi", "hello", "time", "who are you", "what can you do", "help me"):
-   Return JSON:
-   {
-     "intent": "CONVERSATIONAL",
-     "isError": false,
-     "reply": "Conversational, intelligent answer in plain English."
-   }
-
-2. If and ONLY if the user describes an actual terminal issue, error code, or payment failure:
-   Return JSON:
-   {
-     "intent": "DIAGNOSTIC",
-     "isError": true,
-     "errorIssue": "Standardized Error Name",
-     "reasonOfOccurrence": "Concise root cause explanation",
-     "solution": "Actionable steps for the merchant",
-     "contactName": "Target Support Desk Name",
-     "phone": "Helpline phone number",
-     "email": "Support email address",
-     "isBankDeflection": boolean
-   }
-`;
-
 /**
  * Deterministic detection for greetings, small talk, and raw non-diagnostic tokens.
  */
@@ -103,6 +31,10 @@ export function matchStaticSop(userInput, merchantContext = {}) {
   // Clean query for fuzzy token matching
   const cleanQuery = query.replace(/[#\-_]/g, ' ').replace(/\s+/g, ' ').trim();
 
+  // Helper for bank contact data
+  const bankData = BANK_DIRECTORY[acquirer] || BANK_DIRECTORY["HDFC Bank"] || {};
+  const plutusData = BANK_DIRECTORY["Pine Labs Plutus Desk"] || {};
+
   // 1. Direct match in master records
   for (const record of MASTER_ERROR_RECORDS) {
     const errorIssue = record.errorIssue.toLowerCase();
@@ -115,10 +47,18 @@ export function matchStaticSop(userInput, merchantContext = {}) {
       cleanIssue.includes(cleanQuery) ||
       (cleanQuery.includes("not permitted") && cleanIssue.includes("not permitted")) ||
       (cleanQuery.includes("decline 99") && cleanIssue.includes("decline 99")) ||
+      (cleanQuery.includes("call help re") && cleanIssue.includes("call help re")) ||
+      (cleanQuery.includes("key exchange") && cleanIssue.includes("key exchange")) ||
+      (cleanQuery.includes("pvt error") && cleanIssue.includes("pvt error")) ||
+      (cleanQuery.includes("helpdesk") && cleanIssue.includes("helpdesk")) ||
+      (cleanQuery.includes("call help fe") && cleanIssue.includes("call help fe")) ||
+      (cleanQuery.includes("format error") && cleanIssue.includes("format error")) ||
+      (cleanQuery.includes("inoperative") && cleanIssue.includes("inoperative")) ||
+      (cleanQuery.includes("inactive amex") && cleanIssue.includes("inactive amex")) ||
       (record.detailedReason && query.includes(record.detailedReason.toLowerCase()));
 
     if (isDirectMatch) {
-      // RULE 4: Customer Card Issuer Restrictions (Both Profiles) - MUST BE CHECKED FIRST
+      // RULE 4: Customer Card Issuer Restrictions (Both Profiles) - CHECKED FIRST
       if (record.type === ERROR_TYPES.CUSTOMER_ISSUER || record.defaultRule === "RULE_4") {
         return {
           intent: "DIAGNOSTIC",
@@ -127,83 +67,297 @@ export function matchStaticSop(userInput, merchantContext = {}) {
           reasonOfOccurrence: "Issue is with customer card due to fund or service restrictions.",
           solution: "Terminal and POS hardware are fully functional. Merchant to advise customer to contact their card-issuing bank.",
           contactName: "Customer Card-Issuing Bank",
-          phone: "Refer to helpline on back of customer card",
+          phone: ["Refer to helpline on back of customer card"],
           email: "customer.care@card-issuer.com",
-          isBankDeflection: false
+          isBankDeflection: false,
+          noContactNeeded: false,
+          requiresRetryFirst: false
         };
       }
 
-      // RULE 3: Amex Scheme Unconfigured (Both Profiles) - MUST BE CHECKED BEFORE GENERIC ACQUIRER
-      if (record.errorIssue === "Term Inactive-Amex" || record.defaultRule === "RULE_3") {
-        const amexData = BANK_DIRECTORY["American Express"] || {};
-        return {
-          intent: "DIAGNOSTIC",
-          isError: true,
-          errorIssue: "Term Inactive-Amex",
-          reasonOfOccurrence: "Amex scheme or card type not provisioned on acquiring switch or terminal TID.",
-          solution: "Merchant should contact their acquiring bank RM or American Express directly to activate that scheme.",
-          contactName: amexData.bankName || "American Express (Amex) India Merchant Services",
-          phone: `${amexData.tollFree || "1800 419 1414"} / ${amexData.helpline || "0124-674-4699"}`,
-          email: amexData.email || "India.Merchant.Service@aexp.com",
-          isBankDeflection: true
-        };
-      }
-
-      // RULE 1: Non-Aggregator TID Deactivation (100% Bank Deflection)
-      if (isNonAgg && (record.type === ERROR_TYPES.ACQUIRING_BANK || record.defaultRule === "RULE_1")) {
-        const bankData = BANK_DIRECTORY[acquirer] || BANK_DIRECTORY["HDFC Bank"] || {};
+      // Special Flag: noContactNeeded (e.g., ISSUER/SWITCH INOPERATIVE)
+      if (record.noContactNeeded || record.errorIssue.includes("INOPERATIVE") || query.includes("inoperative")) {
         return {
           intent: "DIAGNOSTIC",
           isError: true,
           errorIssue: record.errorIssue,
-          reasonOfOccurrence: "TID deactivated on acquiring switch.",
-          solution: "Merchant should contact Acquiring bank. Pine Labs support cannot unblock bank-owned TIDs.",
-          contactName: bankData.bankName || `${acquirer} Merchant Helpdesk`,
-          phone: bankData.tollFree || "1800 202 6161 / 1860 267 6161 / 1800 258 3838",
-          email: bankData.email || "pos.helpdesk@hdfc.bank.in",
-          isBankDeflection: true
+          reasonOfOccurrence: record.reasonOfOccurrence || "Issue occurs if there is some issue with switch (e.g. SBI Debit switch)",
+          solution: record.solution || "Once switch is up, it will start working automatically.",
+          noContactNeeded: true,
+          requiresRetryFirst: false,
+          isBankDeflection: false
         };
       }
 
-      // RULE 2: Aggregator TID Failure or Pine Labs LMS Limit (Pine Labs Internal Switch Resolution)
-      const plutusData = BANK_DIRECTORY["Pine Labs Plutus Desk"] || {};
-      const isLmsLimit = record.errorIssue.includes("99") || query.includes("99");
-      const isNotPermitted = record.errorIssue.toLowerCase().includes("not permitted") || query.includes("not permitted");
+      // Special Flag: requiresRetryFirst (e.g., Call Help RE / Key Exchange Failed)
+      if (record.requiresRetryFirst || record.errorIssue.includes("Call Help RE") || record.errorIssue.includes("Key Exchange") || query.includes("call help re") || query.includes("key exchange")) {
+        return {
+          intent: "DIAGNOSTIC",
+          isError: true,
+          errorIssue: record.errorIssue,
+          reasonOfOccurrence: record.reasonOfOccurrence || "TLE/ TSS/ PineKey mismatch",
+          solution: record.solution || "1. Need to ask merchant to try transaction with different card.\n2. If still issue persists, needs to hit 5 transaction with same/different cards to get same issue notified/resolved automaticallly at acquirer within 48 Hours.",
+          requiresRetryFirst: true,
+          noContactNeeded: false,
+          isBankDeflection: false
+        };
+      }
+
+      // PART 2: Term Inactive-Amex joins same bucket as Contact VI / TID NOT PRESENT / Invalid Merchant / Invalid Transaction
+      // Rule 1 for Non-Aggregator (Acquiring Bank), Rule 2 for Aggregator (Pine Labs)
+      const isDeactivatedTidGroup = 
+        record.errorIssue === "Contact VI" ||
+        record.errorIssue === "TID NOT PRESENT" ||
+        record.errorIssue === "Invalid Merchant" ||
+        record.errorIssue === "Invalid Transaction" ||
+        record.errorIssue === "Term Inactive-Amex";
+
+      if (isDeactivatedTidGroup) {
+        if (isNonAgg) {
+          return {
+            intent: "DIAGNOSTIC",
+            isError: true,
+            errorIssue: record.errorIssue,
+            reasonOfOccurrence: "TID deactivated on acquiring switch",
+            solution: "Merchant should contact Acquiring bank",
+            contactName: bankData.bankName || `${acquirer} Merchant Helpdesk`,
+            phone: Array.isArray(bankData.phone) ? bankData.phone : [bankData.tollFree || "1800 202 6161"],
+            email: bankData.email || "pos.helpdesk@hdfc.bank.in",
+            isBankDeflection: true,
+            noContactNeeded: false,
+            requiresRetryFirst: false
+          };
+        } else {
+          return {
+            intent: "DIAGNOSTIC",
+            isError: true,
+            errorIssue: record.errorIssue,
+            reasonOfOccurrence: "TID deactivated on acquiring switch",
+            solution: "Pine Labs is the master merchant. Internal L2 priority ticket logged to re-route switch and re-bind terminal TID.",
+            contactName: plutusData.bankName || "Pine Labs Plutus Support Desk",
+            phone: Array.isArray(plutusData.phone) ? plutusData.phone : ["0120-4033600"],
+            email: plutusData.email || "plutus.support@pinelabs.com",
+            isBankDeflection: false,
+            noContactNeeded: false,
+            requiresRetryFirst: false
+          };
+        }
+      }
+
+      // PVT Error 97/99 (Dedicated Pine Labs internal key management)
+      if (record.errorIssue.includes("PVT Error")) {
+        return {
+          intent: "DIAGNOSTIC",
+          isError: true,
+          errorIssue: "PVT Error 97/99",
+          reasonOfOccurrence: "PineKey reset required on TID",
+          solution: "Pine Labs is coordinating with your acquiring bank to reset the security keys (PineKeys) on this terminal. No action needed from you — we'll notify you once resolved.",
+          contactName: "Pine Labs Plutus Support Desk",
+          phone: ["0120-4033600"],
+          email: "plutus.support@pinelabs.com",
+          isBankDeflection: false,
+          noContactNeeded: false,
+          requiresRetryFirst: false
+        };
+      }
+
+      // Error Call Helpdesk / CALL HELP FE / FORMAT ERROR (Dedicated Pine Labs backend re-initialization)
+      if (record.errorIssue === "Error Call Helpdesk" || record.errorIssue === "CALL HELP FE" || record.errorIssue === "FORMAT ERROR") {
+        return {
+          intent: "DIAGNOSTIC",
+          isError: true,
+          errorIssue: record.errorIssue,
+          reasonOfOccurrence: record.reasonOfOccurrence || "PineKey Mismatch",
+          solution: "Once your bank confirms the key update, Pine Labs will re-initialize this terminal from our backend automatically. No merchant action required.",
+          contactName: "Pine Labs Plutus Support Desk",
+          phone: ["0120-4033600"],
+          email: "plutus.support@pinelabs.com",
+          isBankDeflection: false,
+          noContactNeeded: false,
+          requiresRetryFirst: false
+        };
+      }
+
+      // Transaction not permitted on Terminal (Dedicated Pine Labs Smart Routing)
+      if (record.errorIssue.includes("Transaction not permitted")) {
+        return {
+          intent: "DIAGNOSTIC",
+          isError: true,
+          errorIssue: "Transaction not permitted on Terminal",
+          reasonOfOccurrence: "Some specific card type txns not allowed at acquirer end. Generally occurred on aggregator TID where credit card txns not allowed.",
+          solution: "Pine Labs is rerouting these transactions to another acquirer on your terminal. No merchant action required — this is handled automatically on our end.",
+          contactName: "Pine Labs Plutus Support Desk",
+          phone: ["0120-4033600"],
+          email: "plutus.support@pinelabs.com",
+          isBankDeflection: false,
+          noContactNeeded: false,
+          requiresRetryFirst: false
+        };
+      }
+
+      // Decline #99 (Aggregator velocity limit)
+      if (record.errorIssue.includes("99")) {
+        return {
+          intent: "DIAGNOSTIC",
+          isError: true,
+          errorIssue: "Decline #99",
+          reasonOfOccurrence: "Aggregator switch limit cap (RBL velocity cap)",
+          solution: "Pine Labs Plutus L2 lifts velocity cap on switch",
+          contactName: "Pine Labs Plutus Support Desk",
+          phone: ["0120-4033600"],
+          email: "plutus.support@pinelabs.com",
+          isBankDeflection: false,
+          noContactNeeded: false,
+          requiresRetryFirst: false
+        };
+      }
+
+      // General Rule 1: Non-Aggregator TID Deactivation
+      if (isNonAgg && (record.type === ERROR_TYPES.ACQUIRING_BANK || record.defaultRule === "RULE_1")) {
+        return {
+          intent: "DIAGNOSTIC",
+          isError: true,
+          errorIssue: record.errorIssue,
+          reasonOfOccurrence: record.reasonOfOccurrence || "TID deactivated on acquiring switch",
+          solution: record.solution || "Merchant should contact Acquiring bank",
+          contactName: bankData.bankName || `${acquirer} Merchant Helpdesk`,
+          phone: Array.isArray(bankData.phone) ? bankData.phone : [bankData.tollFree || "1800 202 6161"],
+          email: bankData.email || "pos.helpdesk@hdfc.bank.in",
+          isBankDeflection: true,
+          noContactNeeded: false,
+          requiresRetryFirst: false
+        };
+      }
+
+      // General Rule 2: Aggregator TID
       return {
         intent: "DIAGNOSTIC",
         isError: true,
         errorIssue: record.errorIssue,
-        reasonOfOccurrence: isLmsLimit 
-          ? "Aggregator switch velocity limit reached (LMS limit)." 
-          : isNotPermitted 
-          ? "Aggregator switch routing exception (credit transactions disabled on debit-only TID tier)."
-          : "Aggregator switch routing or limit exception.",
-        solution: isLmsLimit 
-          ? "Pine Labs is master merchant. Pine Labs Plutus L2 coordinates with LMS to lift velocity cap." 
-          : (record.aggregatorSolution || "Pine Labs is the master merchant. Internal L2 priority ticket logged to re-route switch and re-bind terminal TID."),
+        reasonOfOccurrence: record.reasonOfOccurrence || "Aggregator switch routing or limit exception.",
+        solution: record.aggregatorSolution || record.solution || "Pine Labs is the master merchant. Internal L2 priority ticket logged to re-route switch.",
         contactName: plutusData.bankName || "Pine Labs Plutus Support Desk",
-        phone: plutusData.landline || "0120-4033600",
+        phone: Array.isArray(plutusData.phone) ? plutusData.phone : ["0120-4033600"],
         email: plutusData.email || "plutus.support@pinelabs.com",
-        isBankDeflection: false
+        isBankDeflection: false,
+        noContactNeeded: false,
+        requiresRetryFirst: false
       };
     }
   }
 
   // 2. Keyword-based matching
-  // RULE 3 Keyword Fallback (Amex / American Express)
-  if (query.includes("amex") || query.includes("american express") || query.includes("inactive-amex")) {
-    const amexData = BANK_DIRECTORY["American Express"] || {};
+  // SWITCH INOPERATIVE keyword match
+  if (query.includes("inoperative") || query.includes("switch inoperative") || query.includes("issuer inoperative")) {
     return {
       intent: "DIAGNOSTIC",
       isError: true,
-      errorIssue: "Term Inactive-Amex",
-      reasonOfOccurrence: "Amex scheme not provisioned on acquiring bank switch or terminal TID.",
-      solution: "Merchant should contact their acquiring bank RM or American Express directly to activate scheme.",
-      contactName: amexData.bankName || "American Express (Amex) India Merchant Services",
-      phone: `${amexData.tollFree || "1800 419 1414"} / ${amexData.helpline || "0124-674-4699"}`,
-      email: amexData.email || "India.Merchant.Service@aexp.com",
-      isBankDeflection: true
+      errorIssue: "ISSUER/SWITCH INOPERATIVE",
+      reasonOfOccurrence: "Issue occurs if there is some issue with switch (e.g. SBI Debit switch)",
+      solution: "Once switch is up, it will start working automatically.",
+      noContactNeeded: true,
+      requiresRetryFirst: false,
+      isBankDeflection: false
     };
+  }
+
+  // Call Help RE / Key Exchange Failed keyword match
+  if (query.includes("call help re") || query.includes("key exchange")) {
+    return {
+      intent: "DIAGNOSTIC",
+      isError: true,
+      errorIssue: query.includes("key exchange") ? "Key Exchange Failed" : "Call Help RE",
+      reasonOfOccurrence: "TLE/ TSS/ PineKey mismatch",
+      solution: "1. Need to ask merchant to try transaction with different card.\n2. If still issue persists, needs to hit 5 transaction with same/different cards to get same issue notified/resolved automaticallly at acquirer within 48 Hours.",
+      requiresRetryFirst: true,
+      noContactNeeded: false,
+      isBankDeflection: false
+    };
+  }
+
+  // PVT Error keyword match (Dedicated Pine Labs internal key management)
+  if (query.includes("pvt error") || query.includes("pvt 97") || query.includes("pvt 99")) {
+    return {
+      intent: "DIAGNOSTIC",
+      isError: true,
+      errorIssue: "PVT Error 97/99",
+      reasonOfOccurrence: "PineKey reset required on TID",
+      solution: "Pine Labs is coordinating with your acquiring bank to reset the security keys (PineKeys) on this terminal. No action needed from you — we'll notify you once resolved.",
+      contactName: "Pine Labs Plutus Support Desk",
+      phone: ["0120-4033600"],
+      email: "plutus.support@pinelabs.com",
+      isBankDeflection: false,
+      noContactNeeded: false,
+      requiresRetryFirst: false
+    };
+  }
+
+  // Error Call Helpdesk / Format Error keyword match (Dedicated Pine Labs backend re-initialization)
+  if (query.includes("call helpdesk") || query.includes("call help fe") || query.includes("format error")) {
+    const issueName = query.includes("format error") ? "FORMAT ERROR" : query.includes("call help fe") ? "CALL HELP FE" : "Error Call Helpdesk";
+    return {
+      intent: "DIAGNOSTIC",
+      isError: true,
+      errorIssue: issueName,
+      reasonOfOccurrence: "PineKey Mismatch",
+      solution: "Once your bank confirms the key update, Pine Labs will re-initialize this terminal from our backend automatically. No merchant action required.",
+      contactName: "Pine Labs Plutus Support Desk",
+      phone: ["0120-4033600"],
+      email: "plutus.support@pinelabs.com",
+      isBankDeflection: false,
+      noContactNeeded: false,
+      requiresRetryFirst: false
+    };
+  }
+
+  // Transaction not permitted on Terminal keyword match (Dedicated Pine Labs Smart Routing)
+  if (query.includes("not permitted") || query.includes("transaction not permitted")) {
+    return {
+      intent: "DIAGNOSTIC",
+      isError: true,
+      errorIssue: "Transaction not permitted on Terminal",
+      reasonOfOccurrence: "Some specific card type txns not allowed at acquirer end. Generally occurred on aggregator TID where credit card txns not allowed.",
+      solution: "Pine Labs is rerouting these transactions to another acquirer on your terminal. No merchant action required — this is handled automatically on our end.",
+      contactName: "Pine Labs Plutus Support Desk",
+      phone: ["0120-4033600"],
+      email: "plutus.support@pinelabs.com",
+      isBankDeflection: false,
+      noContactNeeded: false,
+      requiresRetryFirst: false
+    };
+  }
+
+  // Term Inactive-Amex keyword match (Option A: routes to acquiring bank on Non-Agg, Pine Labs on Agg)
+  if (query.includes("term inactive amex") || query.includes("inactive amex") || query.includes("inactive-amex")) {
+    if (isNonAgg) {
+      return {
+        intent: "DIAGNOSTIC",
+        isError: true,
+        errorIssue: "Term Inactive-Amex",
+        reasonOfOccurrence: "TID deactivated on acquiring switch",
+        solution: "Merchant should contact Acquiring bank",
+        contactName: bankData.bankName || `${acquirer} Merchant Helpdesk`,
+        phone: Array.isArray(bankData.phone) ? bankData.phone : [bankData.tollFree || "1800 202 6161"],
+        email: bankData.email || "pos.helpdesk@hdfc.bank.in",
+        isBankDeflection: true,
+        noContactNeeded: false,
+        requiresRetryFirst: false
+      };
+    } else {
+      return {
+        intent: "DIAGNOSTIC",
+        isError: true,
+        errorIssue: "Term Inactive-Amex",
+        reasonOfOccurrence: "TID deactivated on acquiring switch",
+        solution: "Pine Labs is the master merchant. Internal L2 priority ticket logged to re-route switch and re-bind terminal TID.",
+        contactName: plutusData.bankName || "Pine Labs Plutus Support Desk",
+        phone: Array.isArray(plutusData.phone) ? plutusData.phone : ["0120-4033600"],
+        email: plutusData.email || "plutus.support@pinelabs.com",
+        isBankDeflection: false,
+        noContactNeeded: false,
+        requiresRetryFirst: false
+      };
+    }
   }
 
   // RULE 4 Keyword Fallback (Customer Card Issuer Declines)
@@ -222,60 +376,64 @@ export function matchStaticSop(userInput, merchantContext = {}) {
       reasonOfOccurrence: "Issue is with customer card due to fund or service restrictions.",
       solution: "Terminal and POS hardware are fully functional. Merchant to advise customer to contact their card-issuing bank.",
       contactName: "Customer Card-Issuing Bank",
-      phone: "Refer to helpline on back of customer card",
+      phone: ["Refer to helpline on back of customer card"],
       email: "customer.care@card-issuer.com",
-      isBankDeflection: false
+      isBankDeflection: false,
+      noContactNeeded: false,
+      requiresRetryFirst: false
     };
   }
 
   // RULE 1 & 2 Keyword Fallback (TID / Switch Errors)
   if (query.includes("tid") || query.includes("deactivat") || query.includes("contact vi") || query.includes("invalid merchant") || query.includes("not present")) {
     if (isNonAgg) {
-      const bankData = BANK_DIRECTORY[acquirer] || BANK_DIRECTORY["HDFC Bank"] || {};
       return {
         intent: "DIAGNOSTIC",
         isError: true,
         errorIssue: "TID NOT PRESENT",
-        reasonOfOccurrence: "Terminal Identifier (TID) deactivated on acquiring switch.",
-        solution: "Merchant should contact Acquiring bank. Pine Labs support cannot unblock bank-owned TIDs.",
+        reasonOfOccurrence: "TID deactivated on acquiring switch",
+        solution: "Merchant should contact Acquiring bank",
         contactName: bankData.bankName || `${acquirer} Merchant Helpdesk`,
-        phone: bankData.tollFree || "1800 202 6161 / 1860 267 6161 / 1800 258 3838",
+        phone: Array.isArray(bankData.phone) ? bankData.phone : [bankData.tollFree || "1800 202 6161"],
         email: bankData.email || "pos.helpdesk@hdfc.bank.in",
-        isBankDeflection: true
+        isBankDeflection: true,
+        noContactNeeded: false,
+        requiresRetryFirst: false
       };
     } else {
-      const plutusData = BANK_DIRECTORY["Pine Labs Plutus Desk"] || {};
       return {
         intent: "DIAGNOSTIC",
         isError: true,
         errorIssue: "Invalid Merchant",
-        reasonOfOccurrence: "Aggregator switch routing or limit exception.",
+        reasonOfOccurrence: "TID deactivated on acquiring switch",
         solution: "Pine Labs is the master merchant. Internal L2 priority ticket logged to re-route switch and re-bind terminal TID.",
         contactName: plutusData.bankName || "Pine Labs Plutus Support Desk",
-        phone: plutusData.landline || "0120-4033600",
+        phone: Array.isArray(plutusData.phone) ? plutusData.phone : ["0120-4033600"],
         email: plutusData.email || "plutus.support@pinelabs.com",
-        isBankDeflection: false
+        isBankDeflection: false,
+        noContactNeeded: false,
+        requiresRetryFirst: false
       };
     }
   }
 
   if (query.includes("decline #99") || query.includes("decline 99") || query.includes("limit")) {
-    const plutusData = BANK_DIRECTORY["Pine Labs Plutus Desk"] || {};
     return {
       intent: "DIAGNOSTIC",
       isError: true,
       errorIssue: "Decline #99",
-      reasonOfOccurrence: "Aggregator switch velocity limit reached (LMS limit).",
-      solution: "Pine Labs is master merchant. Pine Labs Plutus L2 coordinates with LMS to lift velocity cap.",
+      reasonOfOccurrence: "Aggregator switch limit cap (RBL velocity cap)",
+      solution: "Pine Labs Plutus L2 lifts velocity cap on switch",
       contactName: plutusData.bankName || "Pine Labs Plutus Support Desk",
-      phone: plutusData.landline || "0120-4033600",
+      phone: Array.isArray(plutusData.phone) ? plutusData.phone : ["0120-4033600"],
       email: plutusData.email || "plutus.support@pinelabs.com",
-      isBankDeflection: false
+      isBankDeflection: false,
+      noContactNeeded: false,
+      requiresRetryFirst: false
     };
   }
 
   if (query.includes("tamper") || query.includes("alert erruption")) {
-    const plutusData = BANK_DIRECTORY["Pine Labs Plutus Desk"] || {};
     return {
       intent: "DIAGNOSTIC",
       isError: true,
@@ -283,9 +441,11 @@ export function matchStaticSop(userInput, merchantContext = {}) {
       reasonOfOccurrence: "POS hardware tamper sensor tripped. Device locked for PCI security.",
       solution: "Physical replacement required. Pine Labs field engineer dispatched.",
       contactName: "Pine Labs Field Engineering Desk",
-      phone: plutusData.landline || "0120-4033600",
+      phone: Array.isArray(plutusData.phone) ? plutusData.phone : ["0120-4033600"],
       email: plutusData.email || "plutus.support@pinelabs.com",
-      isBankDeflection: false
+      isBankDeflection: false,
+      noContactNeeded: false,
+      requiresRetryFirst: false
     };
   }
 
@@ -293,7 +453,7 @@ export function matchStaticSop(userInput, merchantContext = {}) {
   return {
     intent: "CONVERSATIONAL",
     isError: false,
-    reply: "Hello! I am your Pine Labs POS Sentinel. I'm actively monitoring your terminal. You can describe any payment failure, error code, or tap an error chip above to diagnose."
+    reply: "Hello! I am PineShield. I'm actively monitoring your terminal. You can describe any payment failure, error code, or tap an error chip above to diagnose."
   };
 }
 
@@ -303,12 +463,11 @@ export async function askGemini(userInput, merchantContext = {}) {
     return {
       intent: "CONVERSATIONAL",
       isError: false,
-      reply: "Hello! Pine Labs POS Sentinel is standing by. How can I assist with your terminal today?"
+      reply: "Hello! PineShield is standing by. How can I assist with your terminal today?"
     };
   }
 
-  // 2. Call our own server-side proxy — the real Gemini API key lives there,
-  //    never in the browser bundle (no more VITE_GEMINI_API_KEY exposure).
+  // 2. Call server-side proxy
   try {
     const response = await fetch('/api/gemini', {
       method: 'POST',
@@ -318,7 +477,6 @@ export async function askGemini(userInput, merchantContext = {}) {
 
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
-      // 503 means key not configured on server → graceful fallback
       console.warn(`[Gemini Proxy] Status ${response.status}:`, errData.error);
       return matchStaticSop(userInput, merchantContext);
     }
@@ -329,7 +487,7 @@ export async function askGemini(userInput, merchantContext = {}) {
       return {
         intent: "CONVERSATIONAL",
         isError: false,
-        reply: parsed.reply || "Pine Labs POS Sentinel is ready. Let me know if you experience any transaction or terminal issues."
+        reply: parsed.reply || "PineShield is ready. Let me know if you experience any transaction or terminal issues."
       };
     }
 
@@ -337,12 +495,14 @@ export async function askGemini(userInput, merchantContext = {}) {
       intent: "DIAGNOSTIC",
       isError: true,
       errorIssue: parsed.errorIssue || "POS Incident",
-      reasonOfOccurrence: parsed.reasonOfOccurrence || "Deactivated on acquiring switch",
-      solution: parsed.solution || "Contact acquiring bank helpdesk",
+      reasonOfOccurrence: parsed.reasonOfOccurrence || "TID deactivated on acquiring switch",
+      solution: parsed.solution || "Merchant should contact Acquiring bank",
       contactName: parsed.contactName || "Acquiring Bank Helpdesk",
-      phone: parsed.phone || "1800 202 6161",
+      phone: Array.isArray(parsed.phone) ? parsed.phone : [parsed.phone || "1800 202 6161"],
       email: parsed.email || "pos.helpdesk@bank.in",
-      isBankDeflection: typeof parsed.isBankDeflection === 'boolean' ? parsed.isBankDeflection : true
+      isBankDeflection: typeof parsed.isBankDeflection === 'boolean' ? parsed.isBankDeflection : true,
+      noContactNeeded: Boolean(parsed.noContactNeeded),
+      requiresRetryFirst: Boolean(parsed.requiresRetryFirst)
     };
   } catch (err) {
     console.warn("[Gemini Proxy] Network/system failure — activating SOP fallback:", err);

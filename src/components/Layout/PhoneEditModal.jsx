@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import gsap from 'gsap';
+import { useGSAP } from '@gsap/react';
 import { createPortal } from 'react-dom';
 import { useMerchant } from '../../context/MerchantContext';
 import { 
@@ -36,6 +38,18 @@ export default function PhoneEditModal({ isOpen, onClose }) {
       setTestResult(null);
     }
   }, [isOpen, customPhoneNumber, currentProfile, gatewayMode]);
+
+  const cardRef = useRef(null);
+
+  useGSAP(() => {
+    if (isOpen && cardRef.current) {
+      gsap.fromTo(
+        cardRef.current,
+        { opacity: 0, scale: 0.95, y: -8 },
+        { opacity: 1, scale: 1, y: 0, duration: 0.2, ease: "power2.out" }
+      );
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -107,8 +121,8 @@ export default function PhoneEditModal({ isOpen, onClose }) {
   };
 
   const modalJSX = (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-150">
-      <div className="relative w-full max-w-lg my-auto bg-white dark:bg-[#161D2B] rounded-2xl p-5 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[90vh] overflow-y-auto text-slate-900 dark:text-white transition-colors space-y-4">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm overflow-y-auto">
+      <div ref={cardRef} className="relative w-full max-w-lg my-auto bg-white dark:bg-[#161D2B] rounded-2xl p-5 sm:p-6 shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[90vh] overflow-y-auto text-slate-900 dark:text-white transition-colors space-y-4">
         
         {/* Header */}
         <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -118,9 +132,9 @@ export default function PhoneEditModal({ isOpen, onClose }) {
             </div>
             <div>
               <h2 className="text-base font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
-                <span>WhatsApp Automated Dispatch Engine</span>
+                <span>WhatsApp Automated Notification Settings</span>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 font-bold">
-                  POST /api/send-whatsapp
+                  Automated Delivery
                 </span>
               </h2>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
@@ -239,12 +253,12 @@ export default function PhoneEditModal({ isOpen, onClose }) {
                 {isTestingDispatch ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Calling POST /api/send-whatsapp...</span>
+                    <span>Sending test message...</span>
                   </>
                 ) : (
                   <>
                     <Send className="w-3.5 h-3.5" />
-                    <span>⚡ Send Test Automated Dispatch</span>
+                    <span>Send Test Message</span>
                   </>
                 )}
               </button>

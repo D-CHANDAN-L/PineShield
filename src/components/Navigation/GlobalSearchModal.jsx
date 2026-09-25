@@ -56,14 +56,15 @@ export default function GlobalSearchModal({ isOpen, onClose }) {
   ).slice(0, 5);
 
   // Filter Banks
-  const matchedBanks = Object.entries(BANK_DIRECTORY).filter(([k, b]) =>
-    !q || k.toLowerCase().includes(q) || b.bankName.toLowerCase().includes(q) || (b.tollFree && b.tollFree.includes(q))
-  ).slice(0, 3);
+  const matchedBanks = Object.entries(BANK_DIRECTORY).filter(([k, b]) => {
+    const phoneList = Array.isArray(b.phone) ? b.phone : Array.isArray(b.tollFree) ? b.tollFree : [b.phone || b.tollFree || ''];
+    return !q || k.toLowerCase().includes(q) || b.bankName.toLowerCase().includes(q) || phoneList.some(p => String(p).toLowerCase().includes(q));
+  }).slice(0, 3);
 
   // Exactly 4 Core Workbench Views
   const workbenchTabs = [
     { id: 'simulator', label: 'POS Simulator', icon: Cpu, desc: 'A920 Hardware Fidelity & Charge Slip' },
-    { id: 'triage', label: 'AI Triage Studio', icon: Sparkles, desc: 'Gemini-Powered Root-Cause Analysis' },
+    { id: 'triage', label: 'PineShield AI', icon: Sparkles, desc: 'Gemini-Powered Root-Cause Analysis' },
     { id: 'whatsapp', label: 'Store Manager WhatsApp', icon: MessageSquare, desc: 'Omnichannel Resolution Feed' },
     { id: 'emergency', label: 'Emergency Desk', icon: Zap, desc: 'Outage Incident Operations & SLA Tracker' }
   ].filter(t => !q || t.label.toLowerCase().includes(q) || t.desc.toLowerCase().includes(q));
@@ -220,7 +221,7 @@ export default function GlobalSearchModal({ isOpen, onClose }) {
 
         {/* Footer */}
         <div className="p-3 bg-[#0B0F17] border-t border-[#243044] text-[11px] text-slate-400 flex justify-between items-center px-4 font-mono">
-          <span>Pine Labs POS Sentinel Command Bar</span>
+          <span>PineShield Command Bar</span>
           <span>Press ESC to exit</span>
         </div>
       </div>

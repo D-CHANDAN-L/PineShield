@@ -20,9 +20,9 @@ export const SOP_RULES = {
   },
   RULE_3: {
     id: "RULE_3",
-    name: "Rule 3 (Specific Card Unconfigured - e.g., Amex)",
-    summary: "Acquiring Bank RM / Amex Scheme Provisioning",
-    description: "IF a transaction fails because a particular bank card TID is not configured or shows Term Inactive-Amex, THEN instruct the merchant to contact their acquiring bank RM or American Express directly to activate that scheme."
+    name: "Rule 3 (Specific Card Unconfigured)",
+    summary: "Acquiring Bank RM / Scheme Provisioning",
+    description: "IF a transaction fails because a particular scheme or TID is not configured, instruct the merchant to contact their acquiring bank RM."
   },
   RULE_4: {
     id: "RULE_4",
@@ -33,13 +33,13 @@ export const SOP_RULES = {
 };
 
 export const MASTER_ERROR_RECORDS = [
-  // 1. Errors with resolution when TID issue with Acquiring bank (Rules 1, 2, 3)
+  // 1. Errors with resolution when TID issue with Acquiring bank (Rules 1, 2)
   {
     id: 1,
     errorIssue: "Contact VI",
     type: ERROR_TYPES.ACQUIRING_BANK,
     defaultRule: "RULE_1",
-    reasonOfOccurrence: "TID deactivated",
+    reasonOfOccurrence: "TID deactivated on acquiring switch",
     solution: "Merchant should contact Acquiring bank",
     deflectBank: true,
     category: "Acquiring Bank TID"
@@ -49,7 +49,7 @@ export const MASTER_ERROR_RECORDS = [
     errorIssue: "TID NOT PRESENT",
     type: ERROR_TYPES.ACQUIRING_BANK,
     defaultRule: "RULE_1",
-    reasonOfOccurrence: "TID deactivated",
+    reasonOfOccurrence: "TID deactivated on acquiring switch",
     solution: "Merchant should contact Acquiring bank",
     aggregatorSolution: "Pine Labs L2 internal re-initialization (internal ticket created)",
     deflectBank: true,
@@ -60,8 +60,9 @@ export const MASTER_ERROR_RECORDS = [
     errorIssue: "Invalid Merchant",
     type: ERROR_TYPES.ACQUIRING_BANK,
     defaultRule: "RULE_1",
-    reasonOfOccurrence: "TID deactivated",
+    reasonOfOccurrence: "TID deactivated on acquiring switch",
     solution: "Merchant should contact Acquiring bank",
+    aggregatorSolution: "Pine Labs L2 switch re-route and profile update",
     deflectBank: true,
     category: "Acquiring Bank TID"
   },
@@ -69,11 +70,10 @@ export const MASTER_ERROR_RECORDS = [
     id: 4,
     errorIssue: "Term Inactive-Amex",
     type: ERROR_TYPES.ACQUIRING_BANK,
-    defaultRule: "RULE_3",
-    reasonOfOccurrence: "TID deactivated / Amex unconfigured",
-    solution: "Merchant should contact Acquiring bank / Amex Support",
-    detailedReason: "Amex scheme / card type not provisioned on acquiring bank switch or terminal TID",
-    detailedSolution: "Merchant should contact their acquiring bank RM or American Express directly to activate that scheme.",
+    defaultRule: "RULE_1",
+    reasonOfOccurrence: "TID deactivated on acquiring switch",
+    solution: "Merchant should contact Acquiring bank",
+    aggregatorSolution: "Pine Labs L2 switch re-route and profile update",
     deflectBank: true,
     category: "Acquiring Bank TID"
   },
@@ -82,7 +82,7 @@ export const MASTER_ERROR_RECORDS = [
     errorIssue: "Invalid Transaction",
     type: ERROR_TYPES.ACQUIRING_BANK,
     defaultRule: "RULE_1",
-    reasonOfOccurrence: "TID deactivated",
+    reasonOfOccurrence: "TID deactivated on acquiring switch",
     solution: "Merchant should contact Acquiring bank",
     aggregatorSolution: "Pine Labs L2 switch re-route and profile update",
     deflectBank: true,
@@ -93,8 +93,11 @@ export const MASTER_ERROR_RECORDS = [
     errorIssue: "Transaction not permitted on Terminal",
     type: ERROR_TYPES.AGGREGATOR_INTERNAL,
     defaultRule: "RULE_2",
-    reasonOfOccurrence: "TID deactivated / Aggregator switch re-route required",
-    solution: "Pine Labs L2 Operations creates internal priority ticket",
+    reasonOfOccurrence: "Some specific card type txns not allowed at acquirer end. Generally occurred on aggregator TID where credit card txns not allowed.",
+    solution: "Pine Labs is rerouting these transactions to another acquirer on your terminal. No merchant action required — this is handled automatically on our end.",
+    contactName: "Pine Labs Plutus Support Desk",
+    phone: ["0120-4033600"],
+    email: "plutus.support@pinelabs.com",
     deflectBank: false,
     category: "Pine Labs Aggregator"
   },
@@ -105,8 +108,96 @@ export const MASTER_ERROR_RECORDS = [
     defaultRule: "RULE_2",
     reasonOfOccurrence: "Aggregator switch limit cap (RBL velocity cap)",
     solution: "Pine Labs Plutus L2 lifts velocity cap on switch",
+    contactName: "Pine Labs Plutus Support Desk",
+    phone: ["0120-4033600"],
+    email: "plutus.support@pinelabs.com",
     deflectBank: false,
     category: "Pine Labs Aggregator"
+  },
+  {
+    id: 15,
+    errorIssue: "Call Help RE",
+    type: ERROR_TYPES.ACQUIRING_BANK,
+    defaultRule: "RULE_1",
+    reasonOfOccurrence: "TLE/ TSS/ PineKey mismatch",
+    solution: "1. Need to ask merchant to try transaction with different card.\n2. If still issue persists, needs to hit 5 transaction with same/different cards to get same issue notified/resolved automaticallly at acquirer within 48 Hours.",
+    requiresRetryFirst: true,
+    deflectBank: false,
+    category: "Acquiring Bank TID"
+  },
+  {
+    id: 16,
+    errorIssue: "Key Exchange Failed",
+    type: ERROR_TYPES.ACQUIRING_BANK,
+    defaultRule: "RULE_1",
+    reasonOfOccurrence: "TLE/ TSS/ PineKey mismatch",
+    solution: "1. Need to ask merchant to try transaction with different card.\n2. If still issue persists, needs to hit 5 transaction with same/different cards to get same issue notified/resolved automaticallly at acquirer within 48 Hours.",
+    requiresRetryFirst: true,
+    deflectBank: false,
+    category: "Acquiring Bank TID"
+  },
+  {
+    id: 17,
+    errorIssue: "PVT Error 97/99",
+    type: ERROR_TYPES.AGGREGATOR_INTERNAL,
+    defaultRule: "RULE_2",
+    reasonOfOccurrence: "PineKey reset required on TID",
+    solution: "Pine Labs is coordinating with your acquiring bank to reset the security keys (PineKeys) on this terminal. No action needed from you — we'll notify you once resolved.",
+    contactName: "Pine Labs Plutus Support Desk",
+    phone: ["0120-4033600"],
+    email: "plutus.support@pinelabs.com",
+    deflectBank: false,
+    category: "Pine Labs Aggregator"
+  },
+  {
+    id: 18,
+    errorIssue: "Error Call Helpdesk",
+    type: ERROR_TYPES.AGGREGATOR_INTERNAL,
+    defaultRule: "RULE_2",
+    reasonOfOccurrence: "PineKey Mismatch",
+    solution: "Once your bank confirms the key update, Pine Labs will re-initialize this terminal from our backend automatically. No merchant action required.",
+    contactName: "Pine Labs Plutus Support Desk",
+    phone: ["0120-4033600"],
+    email: "plutus.support@pinelabs.com",
+    deflectBank: false,
+    category: "Pine Labs Aggregator"
+  },
+  {
+    id: 19,
+    errorIssue: "CALL HELP FE",
+    type: ERROR_TYPES.AGGREGATOR_INTERNAL,
+    defaultRule: "RULE_2",
+    reasonOfOccurrence: "PineKey Mismatch / Format Error",
+    solution: "Once your bank confirms the key update, Pine Labs will re-initialize this terminal from our backend automatically. No merchant action required.",
+    contactName: "Pine Labs Plutus Support Desk",
+    phone: ["0120-4033600"],
+    email: "plutus.support@pinelabs.com",
+    deflectBank: false,
+    category: "Pine Labs Aggregator"
+  },
+  {
+    id: 20,
+    errorIssue: "FORMAT ERROR",
+    type: ERROR_TYPES.AGGREGATOR_INTERNAL,
+    defaultRule: "RULE_2",
+    reasonOfOccurrence: "PineKey Mismatch / Format Error",
+    solution: "Once your bank confirms the key update, Pine Labs will re-initialize this terminal from our backend automatically. No merchant action required.",
+    contactName: "Pine Labs Plutus Support Desk",
+    phone: ["0120-4033600"],
+    email: "plutus.support@pinelabs.com",
+    deflectBank: false,
+    category: "Pine Labs Aggregator"
+  },
+  {
+    id: 21,
+    errorIssue: "ISSUER/SWITCH INOPERATIVE",
+    type: ERROR_TYPES.ACQUIRING_BANK,
+    defaultRule: "RULE_1",
+    reasonOfOccurrence: "Issue occurs if there is some issue with switch (e.g. SBI Debit switch)",
+    solution: "Once switch is up, it will start working automatically.",
+    noContactNeeded: true,
+    deflectBank: false,
+    category: "Acquiring Bank TID"
   },
 
   // 2. Errors with resolution when Customer card related issue with Issuer bank (Rule 4)

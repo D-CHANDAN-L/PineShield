@@ -53,50 +53,50 @@ export default function SmartPOSTerminal({ onNavigateToTriage }) {
   const isNonAggregator = currentProfile?.architecture === "Non-Aggregator";
 
   return (
-    <div className="flex flex-col lg:flex-row gap-8 items-start justify-center w-full">
+    <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-center lg:items-start justify-center w-full">
       {/* 1. AUTHENTIC WHITE SMARTPOS CASING (A920 HARDWARE FIDELITY) */}
-      <div className="flex flex-col items-center">
-        {/* Strictly Fixed Casing to prevent layout shifts */}
-        <div className="w-[320px] h-[590px] bg-[#F1F3F5] rounded-[42px] p-3 shadow-2xl border-2 border-slate-300 relative flex flex-col justify-between items-center flex-shrink-0 select-none">
+      <div className="flex flex-col items-center w-full sm:w-auto">
+        {/* Strictly Responsive Casing (Comfortable margin on 375-428px screens) */}
+        <div className="w-[280px] xs:w-[300px] sm:w-[320px] h-[520px] xs:h-[550px] sm:h-[590px] bg-[#F1F3F5] rounded-[36px] sm:rounded-[42px] p-2.5 sm:p-3 shadow-2xl border-2 border-slate-300 relative flex flex-col justify-between items-center flex-shrink-0 select-none mx-auto transition-all">
           
           {/* Top Thermal Printer Bay */}
-          <div className="w-full bg-[#E4E7EB] rounded-t-[32px] pt-3.5 pb-2 px-4 border-b border-slate-300 flex flex-col items-center shadow-inner flex-shrink-0">
-            <div className="w-44 h-1.5 bg-slate-700 rounded-full mb-2" />
+          <div className="w-full bg-[#E4E7EB] rounded-t-[28px] sm:rounded-t-[32px] pt-2.5 sm:pt-3.5 pb-1.5 sm:pb-2 px-3 sm:px-4 border-b border-slate-300 flex flex-col items-center shadow-inner flex-shrink-0">
+            <div className="w-32 sm:w-44 h-1.5 bg-slate-700 rounded-full mb-1.5 sm:mb-2" />
             
             {/* Green Pine Labs Branding */}
-            <div className="font-extrabold text-[#00843D] text-sm tracking-tight flex items-center gap-1.5">
+            <div className="font-extrabold text-[#00843D] text-xs sm:text-sm tracking-tight flex items-center gap-1.5">
               <span>pine labs</span>
-              <span className="text-[9px] font-mono text-slate-500 font-normal">SmartPOS A920</span>
+              <span className="text-[8px] sm:text-[9px] font-mono text-slate-500 font-normal">SmartPOS A920</span>
             </div>
 
             {/* 4 Android LEDs & NFC Wave Logo */}
-            <div className="w-full flex justify-between items-center mt-2 px-2">
-              <div className="flex items-center space-x-1.5">
-                <span className="w-2 h-2 rounded-full bg-blue-500 shadow-sm shadow-blue-400 animate-pulse" title="Host Switch Link Active"/>
-                <span className="w-2 h-2 rounded-full bg-amber-400 shadow-sm shadow-amber-300" title="Reader Initialized"/>
-                <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-400" title="Power Ready"/>
-                <span className="w-2 h-2 rounded-full bg-rose-500 shadow-sm shadow-rose-400" title="Security SAM OK"/>
+            <div className="w-full flex justify-between items-center mt-1.5 sm:mt-2 px-2">
+              <div className="flex items-center space-x-1 sm:space-x-1.5">
+                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-blue-500 shadow-sm shadow-blue-400 animate-pulse" title="Host Switch Link Active"/>
+                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-400 shadow-sm shadow-amber-300" title="Reader Initialized"/>
+                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-400" title="Power Ready"/>
+                <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-rose-500 shadow-sm shadow-rose-400" title="Security SAM OK"/>
               </div>
-              <Nfc className="w-4 h-4 text-slate-600" title="Contactless EMV L1/L2 Active"/>
+              <Nfc className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-600" title="Contactless EMV L1/L2 Active"/>
             </div>
           </div>
 
-          {/* Borderless Color Touchscreen (Strictly Fixed Dimensions) */}
-          <div className="w-full h-[450px] bg-white rounded-b-2xl shadow-md border-x border-b border-slate-200 overflow-hidden flex flex-col">
+          {/* Borderless Color Touchscreen (Strictly Responsive Geometry) */}
+          <div className="w-full h-[390px] xs:h-[420px] sm:h-[450px] bg-white rounded-b-2xl shadow-md border-x border-b border-slate-200 overflow-hidden flex flex-col">
             <TerminalDisplay onProcess={handleProcess} onReset={handleReset}/>
           </div>
 
           {/* Bottom Contactless / Smart Card EMV Slot (Zero plastic keypad buttons) */}
-          <div className="w-full pt-2 pb-1 flex flex-col items-center flex-shrink-0">
-            <div className="w-32 h-1.5 bg-slate-300 rounded-full border border-slate-400/60 shadow-inner" />
-            <span className="text-[8px] font-bold text-slate-500 tracking-wider mt-0.5 uppercase">
+          <div className="w-full pt-1.5 sm:pt-2 pb-1 flex flex-col items-center flex-shrink-0">
+            <div className="w-24 sm:w-32 h-1.5 bg-slate-300 rounded-full border border-slate-400/60 shadow-inner" />
+            <span className="text-[7.5px] sm:text-[8px] font-bold text-slate-500 tracking-wider mt-0.5 uppercase">
               Smart Card EMV Slot
             </span>
           </div>
         </div>
 
         {/* Detached Receipt Modal Trigger Button & Inter-Screen Deep Route Button */}
-        <div className="w-[320px] mt-3 space-y-2">
+        <div className="w-[280px] xs:w-[300px] sm:w-[320px] mt-3 space-y-2 mx-auto">
           {printedReceipt ? (
             <button
               id="btn-view-charge-slip"
@@ -112,7 +112,7 @@ export default function SmartPOSTerminal({ onNavigateToTriage }) {
             </div>
           )}
 
-          {/* Inter-Screen Deep Routing Action: Navigate to AI Triage Studio */}
+          {/* Inter-Screen Deep Routing Action: Navigate to AI PineShield */}
           {terminalStatus === "FAILED" && (
             <button
               id="btn-goto-triage"
@@ -124,7 +124,7 @@ export default function SmartPOSTerminal({ onNavigateToTriage }) {
               }}
               className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-emerald-950 transition flex items-center justify-center space-x-2 cursor-pointer active:scale-95 animate-in fade-in duration-200"
             >
-              <span>⚡ Diagnose in AI Triage Studio</span>
+              <span>⚡ Diagnose in PineShield AI</span>
               <span>→</span>
             </button>
           )}

@@ -1,17 +1,30 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { createPortal } from 'react-dom';
+import gsap from 'gsap';
+import { useGSAP } from '@gsap/react';
 import { useMerchant } from '../../context/MerchantContext';
 import { UserCheck, Shield, Building2, Terminal, ArrowRight, X, CheckCircle2 } from 'lucide-react';
 
 export default function DemoProfileModal({ isOpen, onClose }) {
   const { demoProfiles, activeProfileId, switchDemoProfile } = useMerchant();
+  const cardRef = useRef(null);
+
+  useGSAP(() => {
+    if (isOpen && cardRef.current) {
+      gsap.fromTo(
+        cardRef.current,
+        { opacity: 0, scale: 0.95, y: -8 },
+        { opacity: 1, scale: 1, y: 0, duration: 0.2, ease: "power2.out" }
+      );
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   const modalJSX = (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-150">
-      <div className="relative w-full max-w-2xl my-auto bg-white dark:bg-[#161D2B] rounded-2xl p-6 shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[90vh] overflow-y-auto text-slate-900 dark:text-white transition-colors space-y-4">
-        
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm overflow-y-auto">
+      <div ref={cardRef} className="relative w-full max-w-2xl my-auto bg-white dark:bg-[#161D2B] rounded-2xl p-6 shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[90vh] overflow-y-auto text-slate-900 dark:text-white transition-colors space-y-4">
+
         {/* Header */}
         <div className="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-3">
           <div>
@@ -43,19 +56,17 @@ export default function DemoProfileModal({ isOpen, onClose }) {
               <div
                 key={p.profileId}
                 onClick={() => switchDemoProfile(p.profileId)}
-                className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between space-y-3 relative ${
-                  isActive
+                className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between space-y-3 relative ${isActive
                     ? isNonAgg
                       ? "border-rose-500 bg-rose-50/40 dark:bg-rose-950/20 shadow-lg ring-2 ring-rose-500/20"
                       : "border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20 shadow-lg ring-2 ring-emerald-500/20"
                     : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-[#0B0F17]/60 hover:border-slate-300 dark:hover:border-slate-700"
-                }`}
+                  }`}
               >
                 {/* Active Badge */}
                 {isActive && (
-                  <span className={`absolute -top-2.5 right-3 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider font-mono flex items-center gap-1 ${
-                    isNonAgg ? "bg-rose-500 text-white" : "bg-emerald-500 text-slate-950 font-black"
-                  }`}>
+                  <span className={`absolute -top-2.5 right-3 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider font-mono flex items-center gap-1 ${isNonAgg ? "bg-rose-500 text-white" : "bg-emerald-500 text-slate-950 font-black"
+                    }`}>
                     <CheckCircle2 className="w-3 h-3" />
                     Active Bound Session
                   </span>
@@ -101,11 +112,10 @@ export default function DemoProfileModal({ isOpen, onClose }) {
                   </div>
 
                   {/* SOP Routing Explanation */}
-                  <div className={`p-2 rounded-xl text-[10.5px] leading-tight border ${
-                    isNonAgg
+                  <div className={`p-2 rounded-xl text-[10.5px] leading-tight border ${isNonAgg
                       ? "bg-rose-100/50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300 border-rose-200 dark:border-rose-900/50"
                       : "bg-emerald-100/50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900/50"
-                  }`}>
+                    }`}>
                     {isNonAgg ? (
                       <p>
                         <strong>Rule 1 Applied:</strong> 100% Zero-Touch Deflection to <strong>HDFC Bank Helpdesk</strong>. Pine Labs has no switch unlock authority.
@@ -124,13 +134,12 @@ export default function DemoProfileModal({ isOpen, onClose }) {
                     e.stopPropagation();
                     switchDemoProfile(p.profileId);
                   }}
-                  className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer shadow-sm ${
-                    isActive
+                  className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer shadow-sm ${isActive
                       ? isNonAgg
                         ? "bg-rose-600 text-white hover:bg-rose-700"
                         : "bg-emerald-600 text-white hover:bg-emerald-700"
                       : "bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200"
-                  }`}
+                    }`}
                 >
                   <span>{isActive ? "Currently Active Bound Profile" : `Switch to ${p.architecture}`}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -142,7 +151,7 @@ export default function DemoProfileModal({ isOpen, onClose }) {
 
         {/* Footer info */}
         <div className="text-center pt-1 text-[11px] text-slate-400 font-mono">
-          Context pre-binding eliminates conversational friction: AI Triage never asks "What is your POS ID?".
+          Context pre-binding eliminates conversational friction: PineShield AI never asks "What is your POS ID?".
         </div>
       </div>
     </div>

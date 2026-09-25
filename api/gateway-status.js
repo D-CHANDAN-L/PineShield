@@ -22,6 +22,6 @@ export default function handler(req, res) {
       ultraMsg: hasUltraMsg,
       mockAutomated: true
     },
-    service: 'Pine Labs POS Sentinel Automated WhatsApp Dispatcher'
+    service: 'PineShield Automated WhatsApp Dispatcher'
   });
 }

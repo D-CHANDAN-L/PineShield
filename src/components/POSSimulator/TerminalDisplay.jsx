@@ -30,28 +30,28 @@ export default function TerminalDisplay({ onProcess, onReset }) {
       </div>
 
       {/* 2. Main Screen Area (Strict Fixed Geometry) */}
-      <div className="flex-1 flex flex-col p-3 justify-center items-center overflow-hidden">
+      <div className="flex-1 flex flex-col p-2 sm:p-3 justify-center items-center overflow-hidden">
         {/* IDLE SCREEN */}
         {terminalStatus === "IDLE" && (
-          <div className="w-full flex flex-col items-center space-y-3">
+          <div className="w-full flex flex-col items-center space-y-2 sm:space-y-3">
             <div className="text-center w-full">
-              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Sale Amount</span>
-              <div className="bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 flex items-center justify-center space-x-1 shadow-inner mt-1">
+              <span className="text-[9.5px] sm:text-[10px] uppercase font-bold text-slate-400 tracking-wider">Sale Amount</span>
+              <div className="bg-slate-50 border border-slate-200 rounded-xl py-1 sm:py-2 px-2.5 sm:px-3 flex items-center justify-center space-x-1 shadow-inner mt-0.5 sm:mt-1">
                 <span className="text-slate-400 text-xs font-semibold">₹</span>
                 <input
                   type="text"
                   value={terminalAmount}
                   onChange={(e) => setTerminalAmount(e.target.value)}
-                  className="text-2xl font-bold font-mono text-slate-900 bg-transparent text-center focus:outline-none w-32"
+                  className="text-xl sm:text-2xl font-bold font-mono text-slate-900 bg-transparent text-center focus:outline-none w-28 sm:w-32"
                 />
               </div>
             </div>
 
             <div className="w-full">
-              <div className="text-[10px] font-bold text-slate-500 mb-1 text-center uppercase tracking-wider">
+              <div className="text-[9.5px] sm:text-[10px] font-bold text-slate-500 mb-1 text-center uppercase tracking-wider">
                 Select Payment Mode
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
                 {[
                   { id: "UPI", label: "UPI", sublabel: "Dynamic QR", icon: QrCode },
                   { id: "Cards", label: "Cards", sublabel: "Domestic / Amex CC", icon: CreditCard },
@@ -65,15 +65,15 @@ export default function TerminalDisplay({ onProcess, onReset }) {
                       key={m.id}
                       id={`pay-mode-${m.id.toLowerCase()}`}
                       onClick={() => setTerminalPaymentMethod(m.id)}
-                      className={`flex flex-col items-center justify-center p-2 rounded-xl border transition-all cursor-pointer ${
+                      className={`flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl border transition-all cursor-pointer ${
                         isSelected
                           ? "bg-emerald-50 border-[#00A859] text-[#00843D] shadow-sm ring-2 ring-[#00A859]/30"
                           : "bg-slate-50/80 border-slate-200 text-slate-600 hover:bg-slate-100"
                       }`}
                     >
-                      <Icon className="w-4 h-4 mb-0.5 text-[#00A859]"/>
-                      <span className="text-[11px] font-bold text-slate-800 leading-tight">{m.label}</span>
-                      <span className="text-[8.5px] text-slate-500 truncate max-w-[110px]">{m.sublabel}</span>
+                      <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 mb-0.5 text-[#00A859]"/>
+                      <span className="text-[10px] sm:text-[11px] font-bold text-slate-800 leading-tight">{m.label}</span>
+                      <span className="text-[8px] sm:text-[8.5px] text-slate-500 truncate max-w-[100px] sm:max-w-[110px]">{m.sublabel}</span>
                     </button>
                   );
                 })}
@@ -133,12 +133,12 @@ export default function TerminalDisplay({ onProcess, onReset }) {
       </div>
 
       {/* 3. Screen Bottom Action Bar */}
-      <div className="p-3 border-t border-slate-100 bg-slate-50 flex-shrink-0">
+      <div className="p-2 sm:p-3 border-t border-slate-100 bg-slate-50 flex-shrink-0">
         {terminalStatus === "IDLE" ? (
           <button
             id="btn-process-payment"
             onClick={onProcess}
-            className="w-full py-2.5 bg-[#00A859] hover:bg-[#00843D] text-white font-bold rounded-xl text-xs transition shadow-md flex items-center justify-center space-x-1.5 cursor-pointer active:scale-[0.99]"
+            className="w-full py-2 sm:py-2.5 bg-[#00A859] hover:bg-[#00843D] text-white font-bold rounded-xl text-xs transition shadow-md flex items-center justify-center space-x-1.5 cursor-pointer active:scale-[0.99]"
           >
             <span>Process ₹{terminalAmount}</span>
           </button>
@@ -146,7 +146,7 @@ export default function TerminalDisplay({ onProcess, onReset }) {
           <button
             id="btn-reset-terminal"
             onClick={onReset}
-            className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-xl text-xs transition flex items-center justify-center space-x-1.5 cursor-pointer active:scale-[0.99]"
+            className="w-full py-2 sm:py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-xl text-xs transition flex items-center justify-center space-x-1.5 cursor-pointer active:scale-[0.99]"
           >
             <RefreshCcw className="w-3.5 h-3.5"/>
             <span>Reset Terminal</span>

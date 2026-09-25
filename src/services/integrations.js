@@ -1,5 +1,5 @@
 /**
- * Pine Labs POS Sentinel - Enterprise Integrations Layer
+ * PineShield - Enterprise Integrations Layer
  * Handles GTM, VWO, Google reCAPTCHA, and OneTrust consent compliance.
  */
 
@@ -11,7 +11,7 @@ export const trackGTMEvent = (eventName, eventData = {}) => {
       const payload = {
         event: eventName,
         timestamp: new Date().toISOString(),
-        app: "PineLabs_POS_Sentinel",
+        app: "PineShield",
         ...eventData
       };
       window.dataLayer.push(payload);

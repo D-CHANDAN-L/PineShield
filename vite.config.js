@@ -50,7 +50,7 @@ export default defineConfig({
                 ultraMsg: hasUltraMsg,
                 mockAutomated: true
               },
-              service: 'Pine Labs POS Sentinel Automated WhatsApp Dispatcher (Vite Dev Server Bridge)'
+              service: 'PineShield Automated WhatsApp Dispatcher (Vite Dev Server Bridge)'
             }));
             return;
           }

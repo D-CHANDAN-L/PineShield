@@ -1,40 +1,21 @@
 import React, { useState } from 'react';
-import { 
-  PhoneCall, 
-  Mail, 
-  CheckCircle2, 
-  CheckCheck, 
-  Zap, 
-  Check, 
-  RefreshCw,
-  Phone,
-  Building2
+import {
+  CheckCircle2,
+  CheckCheck
 } from 'lucide-react';
-import EmailDraftModal from '../Chatbot/EmailDraftModal';
-import CallSimulatorModal from './CallSimulatorModal';
 import { BANK_DIRECTORY } from '../../data/bankDirectory';
 import { BANK_ESCALATION_DIRECTORY } from '../../data/bankContacts';
-import { sendAutomatedWhatsApp, formatWhatsAppMessage } from '../../utils/whatsapp';
 
-export default function WhatsAppMessageBubble({ 
-  alert = {}, 
-  store, 
-  posData, 
+export default function WhatsAppMessageBubble({
+  alert = {},
+  store,
+  posData,
   storeData,
   currentProfile,
-  customPhoneNumber,
   isResolved: controlledIsResolved,
-  onToggleResolved,
-  onCall,
-  onCallAlert,
-  onOpenEmail,
-  onEmailAlert
+  onToggleResolved
 }) {
   const [internalResolved, setInternalResolved] = useState(false);
-  const [showEmailModal, setShowEmailModal] = useState(false);
-  const [showCallModal, setShowCallModal] = useState(false);
-  const [isSendingApi, setIsSendingApi] = useState(false);
-  const [apiSentSuccess, setApiSentSuccess] = useState(false);
 
   const isResolved = controlledIsResolved !== undefined ? controlledIsResolved : internalResolved;
   const toggleResolved = onToggleResolved || (() => setInternalResolved(prev => !prev));
@@ -47,11 +28,11 @@ export default function WhatsAppMessageBubble({
     || (BANK_DIRECTORY && BANK_DIRECTORY["HDFC Bank"])
     || (BANK_ESCALATION_DIRECTORY && BANK_ESCALATION_DIRECTORY["HDFC Bank"])
     || {
-      bankName: "HDFC Bank Merchant Helpdesk",
-      tollFree: "1800 202 6161 / 1860 267 6161 / 1800 258 3838",
-      email: "pos.helpdesk@hdfc.bank.in",
-      tat: "24 Hours"
-    };
+    bankName: "HDFC Bank Merchant Helpdesk",
+    phone: ["1800 202 6161", "1860 267 6161", "1800 258 3838"],
+    email: "pos.helpdesk@hdfc.bank.in",
+    tat: "24 Hours"
+  };
 
   const rawStoreName = safeAlert.storeName || store?.storeName || storeData?.storeName || currentProfile?.storeName || 'Croma Electronics - Indiranagar';
   const storeName = typeof rawStoreName === 'object' ? (rawStoreName?.storeName || 'Croma Electronics - Indiranagar') : String(rawStoreName || 'Croma Electronics - Indiranagar');
@@ -65,244 +46,147 @@ export default function WhatsAppMessageBubble({
   const rawReason = safeAlert.reasonOfOccurrence || safeAlert.reason;
   const reasonText = typeof rawReason === 'object'
     ? (rawReason?.reason || JSON.stringify(rawReason))
-    : String(rawReason || (errorIssue.toLowerCase().includes('tid') ? 'TID deactivated on acquiring bank switch.' : 'POS diagnostic exception flagged on payment switch.'));
+    : String(rawReason || (errorIssue.toLowerCase().includes('tid') ? 'TID deactivated on acquiring switch' : 'POS diagnostic exception flagged on payment switch.'));
 
   const rawSolution = safeAlert.solution;
   const solutionText = typeof rawSolution === 'object'
     ? (rawSolution?.solution || JSON.stringify(rawSolution))
-    : String(rawSolution || 'Merchant should contact Acquiring bank to reactivate terminal. Pine Labs support cannot unblock bank-owned TIDs.');
+    : String(rawSolution || 'Merchant should contact Acquiring bank');
+
+  const noContactNeeded = Boolean(safeAlert.noContactNeeded || errorIssue.toLowerCase().includes("inoperative"));
+  const requiresRetryFirst = Boolean(safeAlert.requiresRetryFirst || errorIssue.toLowerCase().includes("call help re") || errorIssue.toLowerCase().includes("key exchange"));
 
   const rawContact = safeAlert.deflectionTarget || safeAlert.targetEntity || safeAlert.contactName || bankDetails?.bankName || "HDFC Bank Merchant Helpdesk";
   const contactName = typeof rawContact === 'object' ? (rawContact?.name || rawContact?.bankName || "HDFC Bank Merchant Helpdesk") : String(rawContact || "HDFC Bank Merchant Helpdesk");
 
-  const rawPhone = safeAlert.bankTollFree || safeAlert.bankPhone || safeAlert.phone || bankDetails?.tollFree || bankDetails?.supportDeskPhone || "1800 202 6161";
-  const bankPhone = typeof rawPhone === 'object' ? (rawPhone?.phone || rawPhone?.tollFree || "1800 202 6161") : String(rawPhone || "1800 202 6161");
+  // Normalize phone numbers to array
+  const rawPhone = safeAlert.phone || safeAlert.bankPhone || safeAlert.bankTollFree || bankDetails?.phone || bankDetails?.tollFree;
+  let phoneList = [];
+  if (Array.isArray(rawPhone)) {
+    phoneList = rawPhone.map(p => String(p).trim()).filter(Boolean);
+  } else if (typeof rawPhone === 'string') {
+    phoneList = rawPhone.split(/\s*[\/\n]\s*/).map(p => p.trim()).filter(Boolean);
+  }
+  if (phoneList.length === 0 && !noContactNeeded && !requiresRetryFirst) {
+    phoneList = ["1800 202 6161"];
+  }
 
-  const rawEmail = safeAlert.bankEmail || safeAlert.email || bankDetails?.email || bankDetails?.emailL1 || "pos.helpdesk@hdfc.bank.in";
+  const rawEmail = safeAlert.bankEmail || safeAlert.email || bankDetails?.email || "pos.helpdesk@hdfc.bank.in";
   const bankEmail = typeof rawEmail === 'object' ? (rawEmail?.email || "pos.helpdesk@hdfc.bank.in") : String(rawEmail || "pos.helpdesk@hdfc.bank.in");
 
-  const timestamp = typeof safeAlert.timestamp === 'string' ? safeAlert.timestamp : 'Just now';
-  const rawTargetPhone = customPhoneNumber || safeAlert.targetPhone || currentProfile?.managerPhone || '+91 98765 43210';
-  const targetPhone = typeof rawTargetPhone === 'string' ? rawTargetPhone : '+91 98765 43210';
-
+  const timestamp = typeof safeAlert.timestamp === 'string' ? safeAlert.timestamp : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const rawCaseId = safeAlert.ticketRef || safeAlert.caseRef || safeAlert.caseId || `PL-AUTO-${Math.floor(10000 + Math.random() * 90000)}`;
   const caseId = String(rawCaseId || '').replace(/^#+/, '');
 
-  const handleCallAction = () => {
-    if (onCall) {
-      onCall();
-    } else if (onCallAlert) {
-      onCallAlert({
-        ...alert,
-        bankTollFree: bankPhone,
-        deflectionTarget: contactName
-      });
-    } else {
-      setShowCallModal(true);
-    }
-  };
-
-  const handleEmailAction = () => {
-    if (onOpenEmail) {
-      onOpenEmail();
-    } else if (onEmailAlert) {
-      onEmailAlert({
-        ...alert,
-        errorIssue,
-        bankEmail,
-        bankTollFree: bankPhone,
-        deflectionTarget: contactName
-      });
-    } else {
-      setShowEmailModal(true);
-    }
-  };
-
-  const handleApiReDispatch = async () => {
-    setIsSendingApi(true);
-    setApiSentSuccess(false);
-    try {
-      const text = formatWhatsAppMessage({
-        storeName,
-        posId,
-        errorIssue,
-        reasonOfOccurrence: reasonText,
-        solution: solutionText,
-        deflectionTarget: contactName,
-        bankTollFree: bankPhone,
-        bankEmail,
-        caseId
-      });
-      await sendAutomatedWhatsApp({
-        to: targetPhone,
-        message: text,
-        metadata: {
-          storeName,
-          posId,
-          errorIssue,
-          caseRef: caseId
-        }
-      });
-      setApiSentSuccess(true);
-      setTimeout(() => setApiSentSuccess(false), 3000);
-    } catch (e) {
-      console.warn("Re-dispatch error:", e);
-    } finally {
-      setIsSendingApi(false);
-    }
-  };
-
   return (
-    <div className={`bg-[#202C33] border rounded-2xl rounded-tl-none p-4 max-w-[92%] sm:max-w-[85%] text-xs text-[#E9EDEF] space-y-3 shadow-md select-text transition-all ${
-      isResolved ? "border-emerald-500/50 bg-[#1F2C34]/95" : "border-[#2A3942]"
-    }`}>
-      {/* Alert Header */}
-      <div className="flex justify-between items-center pb-2 border-b border-[#2A3942]">
-        <span className="font-bold text-rose-400 text-[12px] flex items-center gap-1.5">
-          🚨 Pine Labs POS Alert
+    <div className="relative flex justify-start my-2">
+      {/* Real WhatsApp Chat Bubble (7.5px rounded, left-aligned received message) */}
+      <div 
+        className={`relative bg-[#202C33] rounded-[7.5px] rounded-tl-none max-w-[92%] sm:max-w-[76%] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] text-[#E9EDEF] select-text transition-all ${
+          isResolved ? "opacity-85 ring-1 ring-[#00A884]/40" : ""
+        }`}
+      >
+        {/* Native WhatsApp Left-Side Bubble Tail */}
+        <span className="absolute -left-2 top-0 text-[#202C33] pointer-events-none select-none">
+          <svg viewBox="0 0 8 13" width="8" height="13" fill="currentColor">
+            <path d="M1.533 3.568L8 12.193V0H2.812C1.042 0 .474 2.156 1.533 3.568z" />
+          </svg>
         </span>
-        <span className="text-[10px] text-[#8696A0] font-mono">Store: {storeName} | POS: {posId}</span>
-      </div>
 
-      {/* 1. Problem Section */}
-      <div className="bg-[#111B21] p-3 rounded-xl border border-[#222E35] space-y-1">
-        <div className="text-[10px] uppercase font-bold text-rose-400 tracking-wider flex items-center gap-1">
-          <span>📌 PROBLEM:</span>
-        </div>
-        <div className="text-[11.5px] text-[#D1D7DB]">
-          <span className="text-[#8696A0]">Error: </span>
-          <span className="font-mono font-bold text-white">{errorIssue}</span>
-        </div>
-        <div className="text-[11.5px] text-[#D1D7DB] pt-0.5">
-          <span className="text-[#8696A0]">Reason: </span>
-          <span className="font-medium text-rose-200">{reasonText}</span>
-        </div>
-      </div>
+        {/* Message Body: Minimal, formal standard WhatsApp Business alert layout */}
+        <div className="px-3.5 pt-3 pb-2 text-[14px] leading-[19px] space-y-2.5 font-sans">
+          
+          {/* Header row: Plain *Pine Labs POS Alert* */}
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-bold text-white text-[14.5px]">
+              *Pine Labs POS Alert*
+            </span>
+            {isResolved && (
+              <span className="text-[11px] font-medium text-[#00A884] bg-[#00A884]/15 px-2 py-0.5 rounded-[4px] border border-[#00A884]/30 select-none">
+                Resolved ✓
+              </span>
+            )}
+          </div>
 
-      {/* 2. Solution Section */}
-      <div className="bg-[#111B21] p-3 rounded-xl border border-[#222E35] space-y-1">
-        <div className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider flex items-center gap-1">
-          <span>🛠️ SOLUTION:</span>
-        </div>
-        <div className="text-[11.5px] font-semibold text-slate-100 leading-snug">
-          {solutionText}
-        </div>
-      </div>
+          {/* Context Line */}
+          <div className="text-[13px] text-[#8696A0]">
+            Store: <span className="text-white">{storeName}</span> | POS: <span className="text-white font-mono">{posId}</span>
+          </div>
 
-      {/* 3. Whom to Contact Section */}
-      <div className="bg-[#182229] p-3 rounded-xl border border-[#222E35] space-y-2">
-        <div className="text-[10px] uppercase font-bold text-sky-400 tracking-wider flex items-center gap-1">
-          <span>📞 WHOM TO CONTACT:</span>
-        </div>
-        <div className="text-[11.5px] text-slate-300">
-          <span className="text-[#8696A0]">Contact: </span>
-          <span className="font-bold text-white">{contactName}</span>
-        </div>
-        <div className="text-[11px] text-slate-300 flex flex-col sm:flex-row sm:items-center justify-between gap-1 pt-1 border-t border-[#222E35]">
-          <span className="text-[#8696A0]">Phone:</span>
-          <span className="font-mono font-bold text-emerald-400 text-[11.5px]">{bankPhone}</span>
-        </div>
-        <div className="text-[11px] text-slate-300 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-          <span className="text-[#8696A0]">Email:</span>
-          <span className="font-mono text-sky-300 select-all text-[11px]">{bankEmail}</span>
-        </div>
-      </div>
+          {/* Issue & Reason */}
+          <div className="text-[13.5px] space-y-0.5">
+            <div>
+              <span className="text-[#8696A0]">Issue: </span>
+              <span className="text-white font-medium">{errorIssue}</span>
+            </div>
+            <div>
+              <span className="text-[#8696A0]">Reason: </span>
+              <span className="text-white">{reasonText}</span>
+            </div>
+          </div>
 
-      {/* Quick-Reply Action Buttons */}
-      <div className="flex flex-wrap gap-1.5 pt-1">
-        <button
-          onClick={handleCallAction}
-          className="flex-1 min-w-[100px] py-1.5 px-2 bg-[#111B21] hover:bg-[#2A3942] border border-[#2A3942] rounded-xl text-[10.5px] font-semibold text-emerald-400 transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
-          title="Direct Dial Bank Helpdesk"
-        >
-          <PhoneCall className="w-3.5 h-3.5" />
-          <span>Call Desk</span>
-        </button>
+          {/* Resolution */}
+          <div className="text-[13.5px]">
+            <span className="text-[#8696A0]">Resolution: </span>
+            <span className="text-white whitespace-pre-line">{solutionText}</span>
+          </div>
 
-        {bankEmail && (
-          <button
-            onClick={handleEmailAction}
-            className="flex-1 min-w-[120px] py-1.5 px-2 bg-[#111B21] hover:bg-[#2A3942] border border-[#2A3942] rounded-xl text-[10.5px] font-semibold text-sky-300 transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
-            title="Open Pre-Filled Bank Escalation Email"
-          >
-            <Mail className="w-3.5 h-3.5" />
-            <span>Pre-Filled Email</span>
-          </button>
-        )}
-
-        <button
-          onClick={handleApiReDispatch}
-          disabled={isSendingApi}
-          className="py-1.5 px-2.5 bg-[#111B21] hover:bg-[#2A3942] border border-[#2A3942] rounded-xl text-[10.5px] font-semibold text-emerald-300 transition flex items-center justify-center gap-1 cursor-pointer disabled:opacity-50 active:scale-95"
-          title="Trigger background API dispatch via POST /api/send-whatsapp"
-        >
-          {isSendingApi ? (
-            <>
-              <RefreshCw className="w-3 h-3 animate-spin text-emerald-400" />
-              <span>Sending...</span>
-            </>
-          ) : apiSentSuccess ? (
-            <>
-              <Check className="w-3 h-3 text-emerald-400" />
-              <span>Sent!</span>
-            </>
+          {/* Contact or Action section */}
+          {noContactNeeded ? (
+            <div className="text-[13.5px] text-[#00A884] font-medium">
+              No action required — this will resolve automatically.
+            </div>
+          ) : requiresRetryFirst ? (
+            <div className="text-[13.5px] text-amber-300 font-medium">
+              Please retry the transaction as advised above.
+            </div>
           ) : (
-            <>
-              <Zap className="w-3 h-3 text-emerald-400 fill-current" />
-              <span>Re-Dispatch</span>
-            </>
+            <div className="text-[13.5px] space-y-0.5">
+              <div className="text-[#8696A0]">Please contact:</div>
+              <div className="text-white font-medium">{contactName}</div>
+              {phoneList.map((num, idx) => {
+                const cleanPhone = num.replace(/[^0-9+]/g, '');
+                return (
+                  <div key={idx} className="text-[#8696A0]">
+                    Phone: <a href={`tel:${cleanPhone}`} className="text-[#53BDEB] hover:underline font-mono">{num}</a>
+                  </div>
+                );
+              })}
+              {bankEmail && (
+                <div className="text-[#8696A0]">
+                  Email: <a href={`mailto:${bankEmail}`} className="text-[#53BDEB] hover:underline font-mono">{bankEmail}</a>
+                </div>
+              )}
+            </div>
           )}
-        </button>
 
-        <button
-          onClick={toggleResolved}
-          className={`py-1.5 px-2.5 rounded-xl text-[10.5px] font-semibold transition border flex items-center justify-center gap-1 cursor-pointer active:scale-95 ${
-            isResolved
-              ? "bg-emerald-950/70 border-emerald-500 text-emerald-400"
-              : "bg-[#111B21] hover:bg-[#2A3942] border-[#2A3942] text-[#8696A0] hover:text-[#D1D7DB]"
-          }`}
-          title="Mark this alert as resolved"
-        >
-          <CheckCircle2 className="w-3 h-3" />
-          <span>{isResolved ? "Resolved ✓" : "Resolve"}</span>
-        </button>
-      </div>
+          {/* Bottom metadata with caseRef, timestamp, and read ticks */}
+          <div className="pt-1.5 flex items-center justify-between text-[11px] text-[#8696A0] select-none">
+            <span className="font-mono">
+              Ref: #{caseId}
+            </span>
+            <div className="flex items-center space-x-1.5 flex-shrink-0 ml-2">
+              <span className="text-[11px]">{timestamp}</span>
+              <CheckCheck className="w-4 h-4 text-[#53BDEB]" />
+            </div>
+          </div>
+        </div>
 
-      {/* Timestamp & Double Blue Ticks */}
-      <div className="flex items-center justify-between text-[9px] text-[#8696A0] pt-0.5 border-t border-[#2A3942]/50 font-mono">
-        <span>Ref: #{caseId} | Powered by Pine Labs POS Sentinel</span>
-        <div className="flex items-center space-x-1">
-          <span>{timestamp}</span>
-          <CheckCheck className="w-3.5 h-3.5 text-[#53BDEB]"/>
+        {/* Single Call-to-Action Element: Mark as Resolved */}
+        <div className="border-t border-[#2A3942] rounded-b-[7.5px] overflow-hidden">
+          <button
+            type="button"
+            id={`btn-resolve-${caseId}`}
+            onClick={toggleResolved}
+            className={`w-full h-10 px-4 flex items-center justify-center gap-2 text-[13.5px] font-medium hover:bg-[#182229]/70 active:bg-[#182229] transition cursor-pointer select-none ${
+              isResolved ? "text-[#53BDEB]" : "text-[#00A884]"
+            }`}
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            <span>{isResolved ? "Mark as Unresolved" : "Mark as Resolved"}</span>
+          </button>
         </div>
       </div>
-
-      {/* Standalone fallback modals */}
-      {showEmailModal && (
-        <EmailDraftModal
-          isOpen={true}
-          onClose={() => setShowEmailModal(false)}
-          bankDetails={{
-            bankName: contactName,
-            email: bankEmail,
-            tollFree: bankPhone
-          }}
-          posData={{ posId }}
-          storeData={{ storeName }}
-          errorCode={errorIssue}
-          errorIssue={errorIssue}
-        />
-      )}
-
-      {showCallModal && (
-        <CallSimulatorModal
-          isOpen={true}
-          onClose={() => setShowCallModal(false)}
-          bankName={contactName}
-          phoneNumber={bankPhone}
-          storeData={{ storeName }}
-        />
-      )}
     </div>
   );
 }

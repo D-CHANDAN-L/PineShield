@@ -194,7 +194,9 @@ export default function EmergencyDesk() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono">
             <div className="p-2 rounded-xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-slate-800">
               <span className="text-slate-500 dark:text-slate-400 block text-[9.5px] uppercase font-sans font-bold">Bank Toll-Free</span>
-              <strong className="text-slate-900 dark:text-white font-bold truncate block">{activeBankData.tollFree}</strong>
+              <strong className="text-slate-900 dark:text-white font-bold truncate block">
+                {Array.isArray(activeBankData.phone) ? activeBankData.phone.join(' / ') : (Array.isArray(activeBankData.tollFree) ? activeBankData.tollFree.join(' / ') : activeBankData.tollFree)}
+              </strong>
             </div>
             <div className="p-2 rounded-xl bg-slate-50 dark:bg-[#0B0F17] border border-slate-200 dark:border-slate-800 min-w-0">
               <span className="text-slate-500 dark:text-slate-400 block text-[9.5px] uppercase font-sans font-bold">Bank Desk Email</span>
