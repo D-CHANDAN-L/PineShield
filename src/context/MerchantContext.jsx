@@ -232,9 +232,11 @@ export const MerchantProvider = ({ children }) => {
       requiresRetryFirst: Boolean(sopAuthority.requiresRetryFirst || errorRecordOrData?.requiresRetryFirst)
     });
 
+    const nowTimestamp = Date.now();
     const newAlert = {
-      id: `wa_${Date.now()}`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      id: `wa_${nowTimestamp}`,
+      createdAt: nowTimestamp,
+      timestamp: new Date(nowTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       storeName: (isObjectParam ? errorRecordOrData.storeName : null) || currentProfile.storeName,
       city: currentProfile.city,
       managerName: currentProfile.managerName,
@@ -269,7 +271,7 @@ export const MerchantProvider = ({ children }) => {
       requiresRetryFirst: Boolean(sopAuthority.requiresRetryFirst || errorRecordOrData?.requiresRetryFirst)
     };
 
-    setWhatsAppMessages(prev => [newAlert, ...prev]);
+    setWhatsAppMessages(prev => [...prev, newAlert]);
     setHasUnreadAlert(true);
 
     // AUTOMATED BACKGROUND DISPATCH (No manual wa.me clicks)

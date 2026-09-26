@@ -117,24 +117,33 @@ export default function TriageResultCard({
             Contact {contactName}:
           </div>
           {phoneList.map((num, idx) => {
-            const cleanNum = String(num).replace(/[^0-9+]/g, '');
+            const str = String(num).trim();
+            const mdMatch = str.match(/\[([^\]]+)\]\((?:tel:)?([^)]+)\)/);
+            const display = mdMatch ? mdMatch[1] : str;
+            const cleanNum = (mdMatch ? mdMatch[2] : str).replace(/[^0-9+]/g, '');
             return (
               <div key={idx} className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
                 <span className="select-none">📞</span>
                 <a href={`tel:${cleanNum}`} className="text-sky-600 dark:text-sky-400 hover:underline font-mono">
-                  {num}
+                  {display}
                 </a>
               </div>
             );
           })}
-          {bankEmail && (
-            <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-              <span className="select-none">✉️</span>
-              <a href={`mailto:${bankEmail}`} className="text-sky-600 dark:text-sky-400 hover:underline font-mono">
-                {bankEmail}
-              </a>
-            </div>
-          )}
+          {bankEmail && (() => {
+            const str = String(bankEmail).trim();
+            const mdMatch = str.match(/\[([^\]]+)\]\((?:mailto:)?([^)]+)\)/);
+            const display = mdMatch ? mdMatch[1] : str;
+            const mailto = mdMatch ? mdMatch[2] : str;
+            return (
+              <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                <span className="select-none">✉️</span>
+                <a href={`mailto:${mailto}`} className="text-sky-600 dark:text-sky-400 hover:underline font-mono">
+                  {display}
+                </a>
+              </div>
+            );
+          })()}
         </div>
       )}
 

@@ -6,6 +6,68 @@ import {
 import { BANK_DIRECTORY } from '../../data/bankDirectory';
 import { BANK_ESCALATION_DIRECTORY } from '../../data/bankContacts';
 
+// Safely parse markdown links e.g. [1800 202 6161](tel:18002026161) or plain text into interactive JSX
+function renderClickableText(text) {
+  if (!text || typeof text !== 'string') return text;
+  const regex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  const parts = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.substring(lastIndex, match.index));
+    }
+    const label = match[1];
+    const target = match[2];
+    parts.push(
+      <a
+        key={match.index}
+        href={target}
+        className="text-[#53BDEB] hover:underline font-mono"
+        target={target.startsWith('http') ? '_blank' : undefined}
+        rel={target.startsWith('http') ? 'noopener noreferrer' : undefined}
+      >
+        {label}
+      </a>
+    );
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : text;
+}
+
+// Extract clean display label and action link for phone items
+function parsePhoneItem(item) {
+  if (!item) return null;
+  const str = String(item).trim();
+  const mdMatch = str.match(/\[([^\]]+)\]\((?:tel:)?([^)]+)\)/);
+  if (mdMatch) {
+    const display = mdMatch[1].trim();
+    const cleanTel = mdMatch[2].replace(/[^0-9+]/g, '');
+    return { display, href: `tel:${cleanTel}` };
+  }
+  const cleanTel = str.replace(/[^0-9+]/g, '');
+  return { display: str, href: `tel:${cleanTel}` };
+}
+
+// Extract clean display label and action link for email items
+function parseEmailItem(item) {
+  if (!item) return null;
+  const str = String(item).trim();
+  const mdMatch = str.match(/\[([^\]]+)\]\((?:mailto:)?([^)]+)\)/);
+  if (mdMatch) {
+    const display = mdMatch[1].trim();
+    const mailto = mdMatch[2].trim();
+    return { display, href: `mailto:${mailto}` };
+  }
+  return { display: str, href: `mailto:${str}` };
+}
+
 export default function WhatsAppMessageBubble({
   alert = {},
   store,
@@ -117,18 +179,18 @@ export default function WhatsAppMessageBubble({
           <div className="text-[13.5px] space-y-0.5">
             <div>
               <span className="text-[#8696A0]">Issue: </span>
-              <span className="text-white font-medium">{errorIssue}</span>
+              <span className="text-white font-medium">{renderClickableText(errorIssue)}</span>
             </div>
             <div>
               <span className="text-[#8696A0]">Reason: </span>
-              <span className="text-white">{reasonText}</span>
+              <span className="text-white">{renderClickableText(reasonText)}</span>
             </div>
           </div>
 
           {/* Resolution */}
           <div className="text-[13.5px]">
             <span className="text-[#8696A0]">Resolution: </span>
-            <span className="text-white whitespace-pre-line">{solutionText}</span>
+            <span className="text-white whitespace-pre-line">{renderClickableText(solutionText)}</span>
           </div>
 
           {/* Contact or Action section */}
@@ -143,20 +205,25 @@ export default function WhatsAppMessageBubble({
           ) : (
             <div className="text-[13.5px] space-y-0.5">
               <div className="text-[#8696A0]">Please contact:</div>
-              <div className="text-white font-medium">{contactName}</div>
+              <div className="text-white font-medium">{renderClickableText(contactName)}</div>
               {phoneList.map((num, idx) => {
-                const cleanPhone = num.replace(/[^0-9+]/g, '');
+                const parsed = parsePhoneItem(num);
+                if (!parsed) return null;
                 return (
                   <div key={idx} className="text-[#8696A0]">
-                    Phone: <a href={`tel:${cleanPhone}`} className="text-[#53BDEB] hover:underline font-mono">{num}</a>
+                    Phone: <a href={parsed.href} className="text-[#53BDEB] hover:underline font-mono">{parsed.display}</a>
                   </div>
                 );
               })}
-              {bankEmail && (
-                <div className="text-[#8696A0]">
-                  Email: <a href={`mailto:${bankEmail}`} className="text-[#53BDEB] hover:underline font-mono">{bankEmail}</a>
-                </div>
-              )}
+              {bankEmail && (() => {
+                const parsedEmail = parseEmailItem(bankEmail);
+                if (!parsedEmail) return null;
+                return (
+                  <div className="text-[#8696A0]">
+                    Email: <a href={parsedEmail.href} className="text-[#53BDEB] hover:underline font-mono">{parsedEmail.display}</a>
+                  </div>
+                );
+              })()}
             </div>
           )}
 

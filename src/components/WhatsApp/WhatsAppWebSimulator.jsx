@@ -44,7 +44,7 @@ export default function WhatsAppWebSimulator() {
     previousAlertsCount.current = alerts?.length || 0;
   }, [alerts, playChime, setHasUnreadAlert]);
 
-  const lastAlert = alerts?.[0] || null;
+  const lastAlert = alerts?.length ? alerts[alerts.length - 1] : null;
 
   return (
     <div className="w-full h-[620px] bg-[#111B21] border border-[#222E35] rounded-2xl overflow-hidden shadow-2xl flex flex-col md:flex-row select-none">
@@ -176,7 +176,7 @@ export default function WhatsAppWebSimulator() {
           </div>
 
           {/* Empty State vs Alerts List */}
-          {whatsAppAlerts.length === 0 ? (
+          {alerts.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-3 opacity-60">
               <div className="w-12 h-12 rounded-full bg-[#202C33] flex items-center justify-center text-[#8696A0]">
                 <MessageSquareOff className="w-6 h-6"/>
@@ -189,7 +189,7 @@ export default function WhatsAppWebSimulator() {
               </div>
             </div>
           ) : (
-            whatsAppAlerts.map((alert) => (
+            alerts.map((alert) => (
               <WhatsAppMessageBubble
                 key={alert.id}
                 alert={alert}

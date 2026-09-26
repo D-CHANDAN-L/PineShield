@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useMerchant } from '../../context/MerchantContext';
 import { useAudioChime } from './useAudioChime';
@@ -96,7 +96,21 @@ export default function WhatsAppSimulator({ onNavigateToSimulator }) {
   const [typedMessage, setTypedMessage] = useState("");
   const [userSentMessages, setUserSentMessages] = useState([]);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+  const chatScrollContainerRef = useRef(null);
   const messagesEndRef = useRef(null);
+
+  // Robust scroll to bottom helper (direct container scroll + scrollIntoView fallback)
+  const scrollToBottom = (behavior = 'smooth') => {
+    if (chatScrollContainerRef.current) {
+      chatScrollContainerRef.current.scrollTo({
+        top: chatScrollContainerRef.current.scrollHeight,
+        behavior: behavior
+      });
+    }
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: behavior, block: 'nearest' });
+    }
+  };
 
   // Safe Web Audio chime trigger wrapped in try...catch
   useEffect(() => {
@@ -108,13 +122,27 @@ export default function WhatsAppSimulator({ onNavigateToSimulator }) {
         if (typeof setHasUnreadAlert === 'function') {
           setHasUnreadAlert(false);
         }
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       }
     } catch (err) {
       console.warn("Audio chime autoplay handled safely:", err);
     }
     prevCount.current = whatsAppMessages?.length || 0;
   }, [whatsAppMessages, playNotification, setHasUnreadAlert]);
+
+  // Initial scroll to bottom on mount (shows newest messages at bottom without manual scrolling)
+  useEffect(() => {
+    scrollToBottom('instant');
+    const timer = setTimeout(() => scrollToBottom('instant'), 50);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Smooth scroll to bottom whenever new messages arrive or alerts count changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      scrollToBottom('smooth');
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [whatsAppMessages.length, userSentMessages.length]);
 
   const toggleResolved = (id) => {
     setResolvedMap(prev => ({ ...prev, [id]: !prev[id] }));
@@ -125,8 +153,8 @@ export default function WhatsAppSimulator({ onNavigateToSimulator }) {
     return name.split(" ").filter(Boolean).map(n => n[0]).join("").slice(0, 2).toUpperCase() || "RK";
   };
 
-  // Safe array dereferencing
-  const latestAlert = whatsAppMessages?.[0] || null;
+  // Chronological latest alert is at the end of the array (bottom of chat)
+  const latestAlert = whatsAppMessages?.length ? whatsAppMessages[whatsAppMessages.length - 1] : null;
   const messageTime = typeof latestAlert?.timestamp === 'string' ? latestAlert.timestamp : "Just now";
   const rawIssue = latestAlert?.errorIssue || latestAlert?.errorCode || 'Incident Alert';
   const issueStr = typeof rawIssue === 'object' ? (rawIssue?.errorIssue || 'Incident Alert') : String(rawIssue);
@@ -139,11 +167,44 @@ export default function WhatsAppSimulator({ onNavigateToSimulator }) {
     : (typeof profile.managerPhone === 'string' ? profile.managerPhone : "+91 98765 43210");
   const posId = typeof profile.posId === 'string' ? profile.posId : (typeof pos.posId === 'string' ? pos.posId : "POS-IND-01");
 
+  // Guaranteed chronological timeline: array index 0 (oldest) at TOP -> latest at BOTTOM
+  const timelineMessages = useMemo(() => {
+    // If no interactive user messages exist, preserve natural array order directly:
+    // array index 0 (first clicked) -> index N-1 (last clicked)
+    if (!userSentMessages || userSentMessages.length === 0) {
+      return (whatsAppMessages || []).map((m, i) => ({
+        ...m,
+        _timelineType: 'alert',
+        _seq: i
+      }));
+    }
+
+    // Interleave alerts and user sent messages by timestamp
+    const alerts = (whatsAppMessages || []).map((m, i) => ({
+      ...m,
+      _timelineType: 'alert',
+      _time: typeof m.createdAt === 'number' ? m.createdAt : (i + 1),
+      _seq: i
+    }));
+    const baseTime = alerts.length > 0 && typeof alerts[alerts.length - 1]._time === 'number'
+      ? alerts[alerts.length - 1]._time
+      : Date.now();
+    const userMsgs = userSentMessages.map((m, i) => ({
+      ...m,
+      _timelineType: m.isAck ? 'ack' : 'user',
+      _time: typeof m.createdAt === 'number' ? m.createdAt : (baseTime + i + 1),
+      _seq: alerts.length + i
+    }));
+    return [...alerts, ...userMsgs].sort((a, b) => (a._time || 0) - (b._time || 0) || (a._seq - b._seq));
+  }, [whatsAppMessages, userSentMessages]);
+
   // Handle user typing and sending interactive messages
   const handleSendMessage = () => {
     if (!typedMessage.trim()) return;
+    const now = Date.now();
     const newMsg = {
-      id: `user_msg_${Date.now()}`,
+      id: `user_msg_${now}`,
+      createdAt: now,
       text: typedMessage.trim(),
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
@@ -152,19 +213,16 @@ export default function WhatsAppSimulator({ onNavigateToSimulator }) {
 
     // Simulate subtle automated bot acknowledgement after 1.2s
     setTimeout(() => {
+      const ackNow = Date.now();
       const ackMsg = {
-        id: `auto_ack_${Date.now()}`,
+        id: `auto_ack_${ackNow}`,
+        createdAt: ackNow,
         isAck: true,
         text: `PineShield Bot: Message noted for POS #${posId}. Incident tracking ID active.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setUserSentMessages(prev => [...prev, ackMsg]);
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, 1200);
-
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
   };
 
   const handleHeaderCallClick = () => {
@@ -414,7 +472,11 @@ export default function WhatsAppSimulator({ onNavigateToSimulator }) {
           {/* ------------------------------------------------------------------- */}
           {/* Chat Stream (Subtle WhatsApp Doodle Wallpaper Pattern)              */}
           {/* ------------------------------------------------------------------- */}
-          <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3.5 whatsapp-doodle-pattern">
+          <div 
+            ref={chatScrollContainerRef}
+            id="whatsapp-messages-container"
+            className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3.5 whatsapp-doodle-pattern"
+          >
             
             {/* Centered Date Divider Pill */}
             <div className="flex justify-center my-2 select-none">
@@ -431,26 +493,66 @@ export default function WhatsAppSimulator({ onNavigateToSimulator }) {
               </div>
             </div>
 
-            {/* Received WhatsApp Business Incident Alerts */}
-            {whatsAppMessages && whatsAppMessages.length > 0 ? (
-              whatsAppMessages.map((alert, idx) => (
-                <WhatsAppMessageBubble
-                  key={alert?.id || idx}
-                  alert={alert}
-                  store={store}
-                  storeData={store}
-                  posData={pos}
-                  currentProfile={profile}
-                  customPhoneNumber={customPhoneNumber}
-                  isResolved={Boolean(resolvedMap[alert?.id || idx])}
-                  onToggleResolved={() => toggleResolved(alert?.id || idx)}
-                  onCall={() => setActiveCallAlert(alert)}
-                  onCallAlert={(a) => setActiveCallAlert(a)}
-                  onOpenEmail={() => setActiveEmailAlert(alert)}
-                  onEmailAlert={(a) => setActiveEmailAlert(a)}
-                  onTicketAlert={(a) => setActiveTicketAlert(a)}
-                />
-              ))
+            {/* Unified Chronological Message Stream (Oldest on top, newest on bottom) */}
+            {timelineMessages && timelineMessages.length > 0 ? (
+              timelineMessages.map((item, idx) => {
+                if (item._timelineType === 'alert') {
+                  return (
+                    <WhatsAppMessageBubble
+                      key={item?.id || `alert_${idx}`}
+                      alert={item}
+                      store={store}
+                      storeData={store}
+                      posData={pos}
+                      currentProfile={profile}
+                      customPhoneNumber={customPhoneNumber}
+                      isResolved={Boolean(resolvedMap[item?.id || idx])}
+                      onToggleResolved={() => toggleResolved(item?.id || idx)}
+                      onCall={() => setActiveCallAlert(item)}
+                      onCallAlert={(a) => setActiveCallAlert(a)}
+                      onOpenEmail={() => setActiveEmailAlert(item)}
+                      onEmailAlert={(a) => setActiveEmailAlert(a)}
+                      onTicketAlert={(a) => setActiveTicketAlert(a)}
+                    />
+                  );
+                }
+
+                // Interactive User Sent Messages (Green Bubble #005C4B) or Bot Ack (#202C33)
+                const isAck = item._timelineType === 'ack';
+                return (
+                  <div key={item.id || `msg_${idx}`} className={`flex ${isAck ? 'justify-start' : 'justify-end'} my-2`}>
+                    <div 
+                      className={`relative rounded-[7.5px] ${
+                        isAck 
+                          ? 'bg-[#202C33] rounded-tl-none text-[#E9EDEF]' 
+                          : 'bg-[#005C4B] rounded-tr-none text-[#E9EDEF]'
+                      } px-3 py-2 max-w-[85%] sm:max-w-[70%] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] text-[14.2px] leading-[19px]`}
+                    >
+                      {/* Bubble Tail */}
+                      {isAck ? (
+                        <span className="absolute -left-2 top-0 text-[#202C33] pointer-events-none select-none">
+                          <svg viewBox="0 0 8 13" width="8" height="13" fill="currentColor">
+                            <path d="M1.533 3.568L8 12.193V0H2.812C1.042 0 .474 2.156 1.533 3.568z" />
+                          </svg>
+                        </span>
+                      ) : (
+                        <span className="absolute -right-2 top-0 text-[#005C4B] pointer-events-none select-none">
+                          <svg viewBox="0 0 8 13" width="8" height="13" fill="currentColor">
+                            <path d="M6.467 3.568L0 12.193V0h5.188c1.77 0 2.338 2.156 1.279 3.568z" />
+                          </svg>
+                        </span>
+                      )}
+
+                      <div>{item.text}</div>
+                      
+                      <div className="flex items-center justify-end space-x-1 text-[11px] text-[#8696A0] mt-1 select-none">
+                        <span>{item.timestamp}</span>
+                        {!isAck && <CheckCheck className="w-4 h-4 text-[#53BDEB]" />}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
             ) : (
               <div className="h-48 flex flex-col items-center justify-center text-center p-6 text-[#8696A0]">
                 <div className="w-12 h-12 rounded-full bg-[#202C33] flex items-center justify-center mb-3 text-[#00A884]">
@@ -462,41 +564,6 @@ export default function WhatsAppSimulator({ onNavigateToSimulator }) {
                 </p>
               </div>
             )}
-
-            {/* Interactive User Sent Messages (Green Bubble #005C4B) */}
-            {userSentMessages.map((msg) => (
-              <div key={msg.id} className={`flex ${msg.isAck ? 'justify-start' : 'justify-end'} my-2`}>
-                <div 
-                  className={`relative rounded-[7.5px] ${
-                    msg.isAck 
-                      ? 'bg-[#202C33] rounded-tl-none text-[#E9EDEF]' 
-                      : 'bg-[#005C4B] rounded-tr-none text-[#E9EDEF]'
-                  } px-3 py-2 max-w-[85%] sm:max-w-[70%] shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] text-[14.2px] leading-[19px]`}
-                >
-                  {/* Bubble Tail */}
-                  {msg.isAck ? (
-                    <span className="absolute -left-2 top-0 text-[#202C33] pointer-events-none select-none">
-                      <svg viewBox="0 0 8 13" width="8" height="13" fill="currentColor">
-                        <path d="M1.533 3.568L8 12.193V0H2.812C1.042 0 .474 2.156 1.533 3.568z" />
-                      </svg>
-                    </span>
-                  ) : (
-                    <span className="absolute -right-2 top-0 text-[#005C4B] pointer-events-none select-none">
-                      <svg viewBox="0 0 8 13" width="8" height="13" fill="currentColor">
-                        <path d="M6.467 3.568L0 12.193V0h5.188c1.77 0 2.338 2.156 1.279 3.568z" />
-                      </svg>
-                    </span>
-                  )}
-
-                  <div>{msg.text}</div>
-                  
-                  <div className="flex items-center justify-end space-x-1 text-[11px] text-[#8696A0] mt-1 select-none">
-                    <span>{msg.timestamp}</span>
-                    {!msg.isAck && <CheckCheck className="w-4 h-4 text-[#53BDEB]" />}
-                  </div>
-                </div>
-              </div>
-            ))}
 
             <div ref={messagesEndRef} />
           </div>
