@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Zap, Check, Search, X } from 'lucide-react';
+import { Zap, Check, Search, X, Loader2 } from 'lucide-react';
 import { MASTER_ERROR_RECORDS, ERROR_TYPES } from '../../data/sopRules';
 
 export default function ErrorMatrix({ 
@@ -170,6 +170,8 @@ export default function ErrorMatrix({
                       const isSelected = selectedError?.id === err.id;
                       const isThisProcessing = isProcessing && (processingErrorId === err.id || isSelected);
 
+                      const isAggregatorInternal = err.type === ERROR_TYPES.AGGREGATOR_INTERNAL || !isNonAggregator;
+
                       const defaultBadgeText = 
                         err.noContactNeeded
                           ? "Auto-Resolve"
@@ -181,46 +183,61 @@ export default function ErrorMatrix({
                           ? "Bank Host"
                           : "Plutus Desk";
 
+                      // Category-consistent subtle border and soft background tints
+                      let buttonStyle = "bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-400 cursor-pointer active:scale-[0.99]";
+
+                      if (isThisProcessing) {
+                        buttonStyle = isAggregatorInternal
+                          ? "cursor-wait opacity-95 border border-emerald-500/80 dark:border-emerald-400/80 bg-emerald-50/90 dark:bg-emerald-950/70 text-emerald-900 dark:text-emerald-100 shadow-sm"
+                          : "cursor-wait opacity-95 border border-rose-500/80 dark:border-rose-400/80 bg-rose-50/90 dark:bg-rose-950/70 text-rose-900 dark:text-rose-100 shadow-sm";
+                      } else if (isProcessing) {
+                        buttonStyle = "cursor-not-allowed opacity-50 bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 text-slate-500";
+                      } else if (isSelected) {
+                        buttonStyle = isAggregatorInternal
+                          ? "bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-400 dark:border-emerald-500 text-emerald-800 dark:text-emerald-200 font-bold shadow-sm cursor-pointer"
+                          : "bg-rose-50 dark:bg-rose-950/70 border border-rose-400 dark:border-rose-500 text-rose-800 dark:text-rose-200 font-bold shadow-sm cursor-pointer";
+                      }
+
                       return (
                         <button
                           key={err.id}
                           id={`err-btn-${err.id}`}
                           disabled={isProcessing}
                           onClick={() => onSelectError(err)}
-                          className={`w-full text-left px-3 py-2 rounded-xl text-xs font-mono transition flex justify-between items-center border min-h-[38px] ${
-                            isThisProcessing
-                              ? "cursor-wait opacity-95 ring-2 ring-amber-400 bg-amber-50 dark:bg-amber-950/60 border-amber-400 text-amber-900 dark:text-amber-100 shadow-md"
-                              : isProcessing
-                              ? "cursor-not-allowed opacity-50 bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 text-slate-500"
-                              : isSelected
-                              ? isNonAggregator
-                                ? "bg-rose-50 dark:bg-rose-950/70 border-rose-400 dark:border-rose-500 text-rose-800 dark:text-rose-200 font-bold shadow-sm cursor-pointer"
-                                : "bg-emerald-50 dark:bg-emerald-950/70 border-emerald-400 dark:border-emerald-500 text-emerald-800 dark:text-emerald-200 font-bold shadow-sm cursor-pointer"
-                              : "bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-400 cursor-pointer active:scale-[0.99]"
-                          }`}
+                          className={`w-full text-left px-3 py-2 rounded-xl text-xs font-mono transition-all duration-200 ease-in-out flex justify-between items-center min-h-[38px] ${buttonStyle}`}
                         >
                           <div className="flex items-center space-x-2 truncate pr-2">
-                            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 transition-colors duration-200 ${
                               isThisProcessing
-                                ? "bg-amber-500 animate-ping"
-                                : err.type === ERROR_TYPES.AGGREGATOR_INTERNAL 
-                                ? "bg-emerald-500" 
-                                : isNonAggregator 
-                                ? "bg-rose-500" 
-                                : "bg-emerald-500"
+                                ? isAggregatorInternal
+                                  ? "bg-emerald-500 animate-pulse"
+                                  : "bg-rose-500 animate-pulse"
+                                : isAggregatorInternal
+                                ? "bg-emerald-500"
+                                : "bg-rose-500"
                             }`} />
                             <span className="truncate">{err.errorIssue}</span>
                           </div>
-                          {isThisProcessing ? (
-                            <span className="text-[9px] font-sans px-1.5 py-0.5 rounded font-bold bg-amber-200 dark:bg-amber-900 text-amber-950 dark:text-amber-100 animate-pulse border border-amber-300 dark:border-amber-700 flex items-center gap-1 flex-shrink-0">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-600 animate-ping" />
-                              Sending...
-                            </span>
-                          ) : (
-                            <span className="text-[9px] font-sans px-1.5 py-0.5 rounded bg-black/5 dark:bg-black/30 font-bold flex-shrink-0">
-                              {defaultBadgeText}
-                            </span>
-                          )}
+                          
+                          {/* Badge with fixed min-width to strictly prevent layout shift */}
+                          <div className="min-w-[76px] h-[20px] flex items-center justify-end flex-shrink-0">
+                            {isThisProcessing ? (
+                              <span className={`w-full h-full text-[9px] font-sans px-1.5 py-0.5 rounded font-bold border flex items-center justify-center gap-1 transition-all duration-200 ${
+                                isAggregatorInternal
+                                  ? "bg-emerald-100 dark:bg-emerald-900/60 text-emerald-900 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700/60"
+                                  : "bg-rose-100 dark:bg-rose-900/60 text-rose-900 dark:text-rose-200 border-rose-300 dark:border-rose-700/60"
+                              }`}>
+                                <Loader2 className={`w-2.5 h-2.5 animate-spin flex-shrink-0 ${
+                                  isAggregatorInternal ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"
+                                }`} />
+                                <span>Sending...</span>
+                              </span>
+                            ) : (
+                              <span className="w-full h-full text-[9px] font-sans px-1.5 py-0.5 rounded bg-black/5 dark:bg-black/30 text-slate-700 dark:text-slate-300 font-bold flex items-center justify-center transition-all duration-200">
+                                {defaultBadgeText}
+                              </span>
+                            )}
+                          </div>
                         </button>
                       );
                     })}
@@ -242,31 +259,34 @@ export default function ErrorMatrix({
                       const isSelected = selectedError?.id === err.id;
                       const isThisProcessing = isProcessing && (processingErrorId === err.id || isSelected);
 
+                      let buttonStyle = "bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-amber-400/50 cursor-pointer active:scale-[0.99]";
+
+                      if (isThisProcessing) {
+                        buttonStyle = "cursor-wait opacity-95 border border-amber-500/80 dark:border-amber-400/80 bg-amber-50/90 dark:bg-amber-950/70 text-amber-900 dark:text-amber-100 shadow-sm";
+                      } else if (isProcessing) {
+                        buttonStyle = "cursor-not-allowed opacity-50 bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 text-slate-500";
+                      } else if (isSelected) {
+                        buttonStyle = "bg-amber-50 dark:bg-amber-950/70 border border-amber-400 dark:border-amber-500 text-amber-800 dark:text-amber-200 font-bold shadow-sm cursor-pointer";
+                      }
+
                       return (
                         <button
                           key={err.id}
                           id={`err-btn-${err.id}`}
                           disabled={isProcessing}
                           onClick={() => onSelectError(err)}
-                          className={`text-left px-2.5 py-2 rounded-xl text-[10.5px] font-mono transition border truncate min-h-[38px] ${
-                            isThisProcessing
-                              ? "cursor-wait opacity-95 ring-2 ring-amber-400 bg-amber-50 dark:bg-amber-950/60 border-amber-400 text-amber-900 dark:text-amber-100 shadow-md"
-                              : isProcessing
-                              ? "cursor-not-allowed opacity-50 bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 text-slate-500"
-                              : isSelected
-                              ? "bg-amber-50 dark:bg-amber-950/70 border-amber-400 dark:border-amber-500 text-amber-800 dark:text-amber-200 font-bold shadow-sm cursor-pointer"
-                              : "bg-slate-50 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-amber-400/50 cursor-pointer active:scale-[0.99]"
-                          }`}
+                          className={`text-left px-2.5 py-2 rounded-xl text-[10.5px] font-mono transition-all duration-200 ease-in-out border min-h-[38px] flex items-center justify-between gap-1.5 ${buttonStyle}`}
                           title={err.errorIssue}
                         >
-                          <div className="flex items-center justify-between truncate">
-                            <span className="truncate">{err.errorIssue}</span>
-                            {isThisProcessing && (
-                              <span className="text-[8px] bg-amber-200 dark:bg-amber-900 text-amber-950 dark:text-amber-100 font-bold px-1 rounded animate-pulse ml-1">
-                                Sending...
-                              </span>
-                            )}
-                          </div>
+                          <span className="truncate flex-1">{err.errorIssue}</span>
+                          {isThisProcessing ? (
+                            <span className="min-w-[58px] h-[18px] text-[8px] font-sans bg-amber-100 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 font-bold px-1 rounded border border-amber-300 dark:border-amber-700/60 flex items-center justify-center gap-1 flex-shrink-0 transition-all duration-200">
+                              <Loader2 className="w-2 h-2 animate-spin text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                              <span>Sending...</span>
+                            </span>
+                          ) : (
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500/60 flex-shrink-0" />
+                          )}
                         </button>
                       );
                     })}
