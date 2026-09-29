@@ -16,11 +16,12 @@
 ---
 
 ## 📌 Table of Contents
+- [⚡ Quick Local Setup (TL;DR)](#-quick-local-setup-tldr)
 - [Executive Overview](#-executive-overview)
 - [System Architecture & Core Modules](#-system-architecture--core-modules)
 - [Autonomous SOP Routing Matrix](#-autonomous-sop-routing-matrix)
 - [Prerequisites](#-prerequisites)
-- [Quick Start & Setup](#-quick-start--setup)
+- [Quick Start & Setup (Detailed)](#-quick-start--setup-detailed)
 - [Environment Configuration](#-environment-configuration)
 - [NPM Scripts Reference](#-npm-scripts-reference)
 - [Repository Directory Structure](#-repository-directory-structure)
@@ -28,6 +29,29 @@
 - [Gemini AI Dual-Engine Fallback Architecture](#-gemini-ai-dual-engine-fallback-architecture)
 - [Deployment Guide (Vercel & Node.js)](#-deployment-guide-vercel--nodejs)
 - [Troubleshooting & FAQs](#-troubleshooting--faqs)
+
+---
+
+## ⚡ Quick Local Setup (TL;DR)
+
+Get up and running locally in under a minute with these four commands:
+
+```bash
+# 1. Clone the repository from GitHub
+git clone https://github.com/D-CHANDAN-L/PineShield.git
+cd PineShield
+
+# 2. Install all dependencies (Frontend, Express API Bridge, Icons & UI)
+npm install
+
+# 3. Create your local environment configuration
+cp .env.example .env      # Windows PowerShell: Copy-Item .env.example .env
+
+# 4. Launch the local development server
+npm run dev
+```
+
+> 🌐 Once started, open **`http://localhost:5173`** in your browser. PineShield will run immediately with full deterministic SOP routing—even without any external API keys!
 
 ---
 
@@ -125,51 +149,81 @@ Ensure you have the following installed on your machine:
 
 ---
 
-## 🛠️ Quick Start & Setup
+## 🛠️ Quick Start & Setup (Detailed)
+
+Follow these step-by-step instructions to set up the entire project locally from scratch:
 
 ### 1. Clone the Repository
+Open your terminal (macOS/Linux Terminal, Windows Command Prompt, or PowerShell) and clone the repository:
 ```bash
 git clone https://github.com/D-CHANDAN-L/PineShield.git
 cd PineShield
 ```
 
-### 2. Install Dependencies
+### 2. Verify Your Environment
+Ensure your Node.js and npm versions meet the minimum requirements:
+```bash
+node -v   # Should output v18.0.0 or higher (v20+ recommended)
+npm -v    # Should output v9.0.0 or higher
+```
+
+### 3. Install All Project Dependencies
+Run `npm install` in the project root. This single command installs all required packages for both the frontend application and the backend API bridge:
 ```bash
 npm install
 ```
 
-### 3. Configure Environment Variables
-Copy the sample environment file to create your local `.env`:
+**Key dependencies installed:**
+- **Frontend Core**: React 19 (`react`, `react-dom`), React Router v7 (`react-router-dom`)
+- **Build Tool & Bundler**: Vite 8 (`vite`, `@vitejs/plugin-react`)
+- **Styling & UI**: Tailwind CSS 3 (`tailwindcss`, `postcss`, `autoprefixer`), `clsx`, `tailwind-merge`
+- **Animations & Effects**: GSAP 3 (`gsap`, `@gsap/react`), `canvas-confetti`
+- **Icons**: Lucide React (`lucide-react`)
+- **Backend API & Dispatch Bridge**: Express 5 (`express`), CORS (`cors`), Dotenv (`dotenv`)
+- **Linting & Code Quality**: Oxlint (`oxlint`)
+
+### 4. Configure Environment Variables
+Copy the provided `.env.example` file to create your active `.env` file:
+
 ```bash
-# On Linux/macOS
+# On Linux / macOS
 cp .env.example .env
 
 # On Windows (PowerShell)
 Copy-Item .env.example .env
 
-# On Windows (CMD)
+# On Windows (Command Prompt)
 copy .env.example .env
 ```
 
-Open `.env` in your text editor and add your keys (see [Environment Configuration](#-environment-configuration)).
+Open `.env` in any text editor. If you have a Google Gemini API key, add it to `GEMINI_API_KEY`:
+```env
+GEMINI_API_KEY=AIzaSy...your_gemini_api_key_here
+```
 
-> **Note:** PineShield features a zero-friction fallback. If no Gemini API key is configured, the application **automatically uses the built-in deterministic Pine Labs Master SOP engine** with zero degradation in routing accuracy!
+> 💡 **No API key? No problem!** PineShield runs 100% offline out-of-the-box using its built-in Pine Labs deterministic SOP knowledge base. All error matrices, ticket generation, and deflection rules will work without requiring paid accounts or external tokens.
 
-### 4. Run the Development Server
+### 5. Start the Local Development Server
+Launch Vite's development server:
 ```bash
 npm run dev
 ```
-Open your browser and navigate to:
-```
-http://localhost:5173
-```
 
-### 5. (Optional) Run the Standalone Express API Bridge
-If you want to run the standalone Express backend server rather than using Vite's built-in dev middleware:
+Once running, your terminal will display:
+```text
+  VITE v8.3.0  ready in 280 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+```
+Open **`http://localhost:5173`** in your web browser.
+
+### 6. (Optional) Run the Standalone Express Backend
+If you want to run the standalone Express backend server on port 3001 (in addition to Vite's dev middleware):
 ```bash
 npm run server
 ```
-The API server will listen on `http://localhost:3001`.
+The API server will listen on `http://localhost:3001` with endpoints ready at `/api/send-whatsapp` and `/api/gateway-status`.
 
 ---
 
