@@ -45,28 +45,14 @@ export default defineConfig(({ mode }) => {
               req.on('end', async () => {
                 try {
                   const parsed = JSON.parse(body || '{}');
-                  const fakeReq = { method: 'POST', body: parsed };
-                  const fakeRes = {
-                    statusCode: 200,
-                    status(code) {
-                      this.statusCode = code;
-                      return this;
-                    },
-                    json(data) {
-                      res.writeHead(this.statusCode || 200, { 'Content-Type': 'application/json' });
-                      res.end(JSON.stringify(data));
-                    }
-                  };
-
-                  const resolvedKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || env.GEMINI_API_KEY || env.GOOGLE_API_KEY;
-                  if (!resolvedKey || resolvedKey.trim() === '' || resolvedKey.trim() === 'your_gemini_api_key_here') {
-                    console.error('[Vite Dev Middleware] ERROR: GEMINI_API_KEY is missing or unconfigured in .env! Please set GEMINI_API_KEY in .env and restart Vite.');
-                  } else {
-                    console.log('[Vite Dev Middleware] GEMINI_API_KEY detected (presence verified). Forwarding to /api/gemini handler...');
-                  }
-
-                  const geminiHandler = (await import('./api/gemini.js')).default;
-                  await geminiHandler(fakeReq, fakeRes);
+                  const { processGeminiRequest } = await import('./src/utils/geminiCore.js');
+                  const result = await processGeminiRequest({
+                    userInput: parsed.userInput,
+                    merchantContext: parsed.merchantContext || {},
+                    apiKey: process.env.GEMINI_API_KEY || env.GEMINI_API_KEY
+                  });
+                  res.writeHead(result.status, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify(result.data));
                 } catch (e) {
                   console.error('[Vite Dev Middleware] Error handling /api/gemini:', e);
                   res.writeHead(500, { 'Content-Type': 'application/json' });
