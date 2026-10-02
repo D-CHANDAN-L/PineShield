@@ -7304,5 +7304,26 @@
     "content": "### Wi-Fi Connectivity Setup & Troubleshooting on Plutus Smart PoS\n**Primary Fix (Set Connection & Priority):**\n1. Open the **Payments app** on your terminal.\n2. Open the menu by tapping the **three horizontal lines (☰)** in the top-left.\n3. Tap **Set connection** from the menu options.\n4. Ensure **Wi-Fi** is placed at the top (Priority 1). If not, drag the Wi-Fi option to the very top.\n5. Tap **Wi-Fi** to open Communication Setup -> Toggle the button **ON** -> Tap **Submit**.\n6. Swipe down from the top edge of the screen to open Android **Quick Settings Panel**.\n7. Tap the Wi-Fi icon, select your store network, enter the password, and tap **Connect**.\n8. Return to the Payments app menu and tap **Activate** to activate the terminal.\n\n**Secondary Fix (If still unable to connect / Security Exception):**\n1. Go to terminal Home screen -> Open Android **Settings** app.\n2. Tap **Security** -> Find **\"disable web and none\"** option.\n3. If active, tap toggle button to **OFF** (confirm 'Yes').\n4. Swipe down Quick Settings -> Turn Wi-Fi on -> Connect to your network.\n5. Return to Payments app menu and tap **Activate**.\n6. Perform a test transaction from the Home app to confirm resolution.\n\n*Important Note from SOP:* Plutus terminals do NOT detect 5 GHz Wi-Fi bands. The terminal only supports 2.4 GHz frequency. Ensure your router's 2.4 GHz band is broadcasted.",
     "source": "POS Guide.docx",
     "category": "HOW_TO"
+  },
+  {
+    "id": "guide_sale_transaction",
+    "title": "How to Process a Sale Transaction on Plutus Smart POS",
+    "keywords": [
+      "sale",
+      "sales",
+      "transaction",
+      "transactions",
+      "process a sale",
+      "do sale",
+      "accept payment",
+      "card payment",
+      "payment mode",
+      "how to do sale",
+      "standard sale",
+      "charge slip"
+    ],
+    "content": "### How to Process a Standard Sale Transaction on Plutus Smart PoS\n**Standard Sale Procedure:**\n1. From the terminal Home screen, open the **Payments** app and tap **Sale** (or **Accept Payment**).\n2. Select the desired **Payment Mode** (Card Dip/Swipe/Tap, UPI QR, or Cash/EMI).\n3. Enter the transaction **Amount** on the keypad and confirm.\n4. Complete the payment authorization based on customer preference:\n   - **Chip Card (Dip):** Insert the card chip-first into the bottom slot. Customer enters their ATM PIN on the secure PIN pad.\n   - **Contactless (Tap):** Tap the card or NFC-enabled phone near the contactless symbol at the top display (PIN required if amount exceeds the contactless limit).\n   - **Magstripe (Swipe):** Swipe the card through the side magnetic stripe reader if chip is unavailable.\n   - **QR / UPI:** Display dynamic QR for customer to scan and authorize on their phone.\n5. Upon switch approval, the terminal beeps, displays **Transaction Approved**, and automatically prints the merchant and customer charge slips.",
+    "source": "POS Guide.docx",
+    "category": "HOW_TO"
   }
 ]

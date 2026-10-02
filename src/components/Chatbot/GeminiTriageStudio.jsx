@@ -19,7 +19,8 @@ import { MASTER_ERROR_RECORDS, ERROR_TYPES } from '../../data/sopRules';
 import TriageResultCard from './TriageResultCard';
 import EmailDraftModal from './EmailDraftModal';
 import CallSimulatorModal from '../WhatsApp/CallSimulatorModal';
-import { askGemini } from '../../utils/gemini';
+import { askGemini, matchStaticSop } from '../../utils/gemini';
+import { formatWhatsAppMessage } from '../../utils/whatsapp';
 import { useRouter } from '../../hooks/useRouter';
 import MarkdownRenderer from '../Common/MarkdownRenderer';
 
@@ -145,26 +146,115 @@ export default function GeminiTriageStudio({ onNavigateToWhatsApp, onNavigateToS
 
   const handleSendMessage = async (userText) => {
     if (!userText || !userText.trim()) return;
+    const cleanText = userText.trim();
     const now = Date.now();
     // Guard against accidental double-clicks (<400ms) or active in-flight requests
     if (now - lastSendTimeRef.current < 400 || isSendingRef.current || isDispatchingWhatsApp) {
-      console.warn(`[Triage Studio] Suppressed concurrent or rapid dispatch for "${userText}"`);
+      console.warn(`[Triage Studio] Suppressed concurrent or rapid dispatch for "${cleanText}"`);
       return;
     }
 
     isSendingRef.current = true;
     lastSendTimeRef.current = now;
-    setInFlightQuery(userText.trim());
+    setInFlightQuery(cleanText);
 
     try {
       // Add user message to UI chat
       const userMsg = {
         id: `usr_${Date.now()}`,
         sender: 'user',
-        text: userText,
+        text: cleanText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
+      // 1. FAST PATH: Check matchStaticSop FIRST (identical to simulator click path)
+      const sopResult = matchStaticSop(cleanText, currentProfile);
+      if (sopResult && sopResult.isError) {
+        const isAggregator = currentProfile?.architecture === "Aggregator";
+        const ticketRef = (!sopResult.isBankDeflection && isAggregator)
+          ? `PL-AGG-${Math.floor(1000 + Math.random() * 9000)}`
+          : null;
+
+        const realWhatsAppText = formatWhatsAppMessage({
+          storeName: currentProfile?.storeName,
+          posId: currentProfile?.posId,
+          model: currentProfile?.modelBadge,
+          architecture: currentProfile?.architecture,
+          errorIssue: sopResult.errorIssue,
+          reasonOfOccurrence: sopResult.reasonOfOccurrence,
+          solution: sopResult.solution,
+          contactName: sopResult.contactName,
+          phone: sopResult.phone,
+          bankPhone: sopResult.phone,
+          bankEmail: sopResult.email,
+          caseRef: ticketRef,
+          ticketRef: ticketRef,
+          noContactNeeded: sopResult.noContactNeeded,
+          requiresRetryFirst: sopResult.requiresRetryFirst
+        });
+
+        const incidentCardMsg = {
+          id: `agt_${Date.now()}`,
+          sender: 'assistant',
+          isCard: true,
+          errorIssue: sopResult.errorIssue,
+          reasonOfOccurrence: sopResult.reasonOfOccurrence,
+          solution: sopResult.solution,
+          contactName: sopResult.contactName,
+          phone: sopResult.phone,
+          email: sopResult.email,
+          noContactNeeded: sopResult.noContactNeeded,
+          requiresRetryFirst: sopResult.requiresRetryFirst,
+          appliedRule: sopResult.isBankDeflection ? "Bank Deflect" : "Pine Labs Aggregator",
+          appliedRuleId: sopResult.isBankDeflection ? "RULE_1" : "RULE_2",
+          deflectionTarget: sopResult.contactName,
+          bankDetails: {
+            bankName: sopResult.contactName,
+            tollFree: sopResult.phone,
+            phone: sopResult.phone,
+            email: sopResult.email
+          },
+          ticketRef: ticketRef,
+          architecture: currentProfile?.architecture,
+          modelBadge: currentProfile?.modelBadge,
+          acquirer: currentProfile?.acquirer,
+          autoDispatched: true,
+          realWhatsAppText: realWhatsAppText,
+          engine: "deterministic",
+          isGemini: false,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          errorRecord: {
+            errorIssue: sopResult.errorIssue,
+            reasonOfOccurrence: sopResult.reasonOfOccurrence,
+            solution: sopResult.solution,
+            contactName: sopResult.contactName,
+            phone: sopResult.phone,
+            email: sopResult.email,
+            noContactNeeded: sopResult.noContactNeeded,
+            requiresRetryFirst: sopResult.requiresRetryFirst,
+            isBankDeflection: sopResult.isBankDeflection
+          }
+        };
+
+        setChatMessages((prev) => [...prev, userMsg, incidentCardMsg]);
+
+        // Automatically dispatch to WhatsApp only when an actual error occurred
+        dispatchAutoWhatsAppAlert({
+          errorIssue: sopResult.errorIssue,
+          reasonOfOccurrence: sopResult.reasonOfOccurrence,
+          solution: sopResult.solution,
+          contactName: sopResult.contactName,
+          bankPhone: sopResult.phone,
+          bankEmail: sopResult.email,
+          storeName: currentProfile?.storeName,
+          posId: currentProfile?.posId,
+          ticketRef: ticketRef,
+          isBankDeflection: sopResult.isBankDeflection
+        });
+        return;
+      }
+
+      // 2. FALL THROUGH to knowledge-corpus retrieval + Gemini synthesis for non-error / procedural / how-to queries
       const loadingId = `load_${Date.now()}`;
       const loadingMsg = {
         id: loadingId,
@@ -177,7 +267,7 @@ export default function GeminiTriageStudio({ onNavigateToWhatsApp, onNavigateToS
       setChatMessages((prev) => [...prev, userMsg, loadingMsg]);
 
       // Call real Gemini API
-      const result = await askGemini(userText, currentProfile);
+      const result = await askGemini(cleanText, currentProfile);
 
       // CASE 1: Conversational / Non-Error ("hi", "time", general questions)
       if (!result.isError) {
@@ -193,6 +283,29 @@ export default function GeminiTriageStudio({ onNavigateToWhatsApp, onNavigateToS
       }
 
       // CASE 2: Legitimate POS Technical Failure / Error Code
+      const isAggregator = currentProfile?.architecture === "Aggregator";
+      const ticketRef = (!result.isBankDeflection && isAggregator)
+        ? `PL-AGG-${Math.floor(1000 + Math.random() * 9000)}`
+        : null;
+
+      const realWhatsAppText = formatWhatsAppMessage({
+        storeName: currentProfile?.storeName,
+        posId: currentProfile?.posId,
+        model: currentProfile?.modelBadge,
+        architecture: currentProfile?.architecture,
+        errorIssue: result.errorIssue,
+        reasonOfOccurrence: result.reasonOfOccurrence,
+        solution: result.solution,
+        contactName: result.contactName,
+        phone: result.phone,
+        bankPhone: result.phone,
+        bankEmail: result.email,
+        caseRef: ticketRef,
+        ticketRef: ticketRef,
+        noContactNeeded: result.noContactNeeded,
+        requiresRetryFirst: result.requiresRetryFirst
+      });
+
       const incidentCardMsg = {
         id: `agt_${Date.now()}`,
         sender: 'assistant',
@@ -205,6 +318,23 @@ export default function GeminiTriageStudio({ onNavigateToWhatsApp, onNavigateToS
         email: result.email,
         noContactNeeded: result.noContactNeeded,
         requiresRetryFirst: result.requiresRetryFirst,
+        appliedRule: result.isBankDeflection ? "Bank Deflect" : "Pine Labs Aggregator",
+        appliedRuleId: result.isBankDeflection ? "RULE_1" : "RULE_2",
+        deflectionTarget: result.contactName,
+        bankDetails: {
+          bankName: result.contactName,
+          tollFree: result.phone,
+          phone: result.phone,
+          email: result.email
+        },
+        ticketRef: ticketRef,
+        architecture: currentProfile?.architecture,
+        modelBadge: currentProfile?.modelBadge,
+        acquirer: currentProfile?.acquirer,
+        autoDispatched: true,
+        realWhatsAppText: realWhatsAppText,
+        engine: "gemini",
+        isGemini: true,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         errorRecord: {
           errorIssue: result.errorIssue,
@@ -229,7 +359,9 @@ export default function GeminiTriageStudio({ onNavigateToWhatsApp, onNavigateToS
         bankPhone: result.phone,
         bankEmail: result.email,
         storeName: currentProfile?.storeName,
-        posId: currentProfile?.posId
+        posId: currentProfile?.posId,
+        ticketRef: ticketRef,
+        isBankDeflection: result.isBankDeflection
       });
     } finally {
       isSendingRef.current = false;

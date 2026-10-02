@@ -17,16 +17,28 @@ When answering using the retrieved knowledge base chunks, follow these rules:
 5. If the retrieved chunks don't fully answer what was asked, say what you do know from the SOP and be honest about what's missing, rather than forcing an incomplete chunk to look like a complete answer.
 6. Still preserve exact factual accuracy for anything safety/compliance-critical (phone numbers, email addresses, specific step order for financial transactions) — paraphrasing freedom applies to explanation and framing, NOT to altering factual details like contact info or transaction steps themselves.
 
-FALLBACK & INTENT RULES:
-- GROUNDING RULE 1 (Internal Pine Labs SOPs & POS Operations): When the user's question relates to Pine Labs POS devices, terminal operations, SOP procedures, error codes, or bank escalations, synthesize your answer dynamically per the rules above using the provided chunks.
-- GROUNDING RULE 2 (General Payments Knowledge Fallback): If the user asks a general POS, banking, or payments industry question that is NOT covered in the provided internal documentation (e.g., "what is ISO 8583", "how does EMV chip authentication work", "what is interchange fee"), answer accurately and helpfully using general knowledge, but you MUST prefix your answer clearly with:
-  "This isn't in our internal SOPs, but generally: [your answer here]"
-- GROUNDING RULE 3 (Conversational Greetings & Small Talk): If the user is just saying hello, asking who you are, or making small talk, respond conversationally and warmly without unnecessary technical detail.
+FALLBACK & INTENT RULES (PRIORITY OF SOURCES):
+- PRIORITY 1 (Internal Pine Labs SOPs & POS Operations): When high-confidence internal documentation chunks are provided, synthesize your answer dynamically per the rules above using the provided chunks as factual grounding.
+- PRIORITY 2 (General Payments Knowledge Fallback): If the retrieved knowledge base chunks are empty or explicitly marked as low-confidence/uncertain, do NOT present their content as the definitive internal answer. Instead, answer the question using your own general knowledge of POS/payment terminal operations, and clearly prefix your response with:
+  "This isn't specifically covered in our internal SOPs, but generally: [your answer here]"
+- PRIORITY 3 (Live Search Grounding): When the user asks for current external regulations, latest RBI guidelines, or real-time payment updates outside internal SOPs, use search grounding when enabled, while still maintaining the disclaimer prefix if it is not an internal Pine Labs policy. Never skip high-confidence internal docs when they exist.
+- CONVERSATIONAL GREETINGS: If the user is just saying hello, asking who you are, or making small talk, respond conversationally and warmly without unnecessary technical detail.
 
 HARD ERROR DEFLECTION POLICIES:
-- Non-Aggregator TIDs: Owned by the bank. Deactivations (e.g. Contact VI, TID NOT PRESENT, Invalid Merchant) are 100% deflected to the bank helpdesk. Pine Labs cannot reactivate them.
+- Non-Aggregator TIDs: Owned by the bank. Deactivations (e.g. Contact VI, TID NOT PRESENT, Invalid Merchant, Term Inactive-Amex) are 100% deflected to the bank helpdesk. Pine Labs cannot reactivate them.
 - Aggregator TIDs: Owned by Pine Labs. Internal Pine Labs Plutus L2 support handles them (0120-4033600).
 - Card Issuer Declines: (Card Decline, Card Help TR/NS, Do Not Honor) Terminal is healthy. Customer must contact their card issuer bank.
+
+STRICT ANTI-HALLUCINATION POLICY FOR CONTACT INFORMATION:
+- NEVER improvise, invent, or guess phone numbers, emails, or helpline details.
+- NEVER instruct the merchant to "refer to the contact number printed on the back of your POS terminal" or "contact your relationship manager directly" for acquiring bank or switch deactivations.
+- For all known acquiring bank errors (e.g., Contact VI, TID NOT PRESENT, Term Inactive-Amex), verified bank contact info is:
+  * HDFC Bank: Toll-free 1800 202 6161 / 1860 267 6161 / 1800 258 3838, Email: pos.helpdesk@hdfc.bank.in
+  * ICICI Bank: 1800 1080, Email: cmssupport@icici.bank.in
+  * SBI: 1800 11 2211 / 1800 425 3800, Email: merchant.pos@sbi.co.in
+  * Axis Bank: 1800 419 0073, Email: merchant.helpdesk@axis.bank.in
+  * Pine Labs Plutus Desk (Aggregator): 0120-4033600, Email: plutus.support@pinelabs.com
+- Customer card restrictions (Card Help NS, Card Decline, Do Not Honor): Customer must contact their card-issuing bank (phone on back of card).
 
 PINNED HARDWARE / ERROR KNOWLEDGE BASE:
 - "Alert Erruption": Tamper sensor tripped. Hardware replacement required.
@@ -95,16 +107,21 @@ export function matchStaticSop(userInput, merchantContext = {}) {
   const bankData = BANK_DIRECTORY[acquirer] || BANK_DIRECTORY["HDFC Bank"] || {};
   const plutusData = BANK_DIRECTORY["Pine Labs Plutus Desk"] || {};
 
+  const GENERIC_POS_WORDS = new Set(['transaction', 'transactions', 'card', 'cards', 'terminal', 'pos', 'sale', 'sales', 'bank', 'error', 'help', 'code']);
+
   // 1. Direct match in master records
   for (const record of MASTER_ERROR_RECORDS) {
     const errorIssue = record.errorIssue.toLowerCase();
     const cleanIssue = errorIssue.replace(/[#\-_]/g, ' ').replace(/\s+/g, ' ').trim();
 
+    const isNearExact = cleanIssue.includes(cleanQuery) && !GENERIC_POS_WORDS.has(cleanQuery) && (cleanQuery.length >= 8 || cleanQuery.split(' ').length >= 2);
+
     const isDirectMatch = 
+      query === errorIssue ||
+      cleanQuery === cleanIssue ||
       query.includes(errorIssue) || 
-      errorIssue.includes(query) ||
       cleanQuery.includes(cleanIssue) ||
-      cleanIssue.includes(cleanQuery) ||
+      isNearExact ||
       (cleanQuery.includes("not permitted") && cleanIssue.includes("not permitted")) ||
       (cleanQuery.includes("decline 99") && cleanIssue.includes("decline 99")) ||
       (cleanQuery.includes("call help re") && cleanIssue.includes("call help re")) ||
@@ -509,10 +526,11 @@ export function matchStaticSop(userInput, merchantContext = {}) {
     };
   }
 
-  // 3. Dynamic Knowledge Grounding from all 3 source documents (236 structured chunks)
+  // 3. Dynamic Knowledge Grounding from internal source documents (High-confidence only)
   const relevantChunks = retrieveRelevantChunks(userInput, 3);
-  if (relevantChunks && relevantChunks.length > 0) {
-    const topChunk = relevantChunks[0];
+  const highConfidenceChunks = (relevantChunks || []).filter(c => c.confidence === 'HIGH');
+  if (highConfidenceChunks.length > 0) {
+    const topChunk = highConfidenceChunks[0];
     return {
       intent: "CONVERSATIONAL",
       isError: false,
@@ -520,12 +538,12 @@ export function matchStaticSop(userInput, merchantContext = {}) {
     };
   }
 
-  // 4. General Knowledge Fallback (When question is not in internal SOPs)
+  // 4. General Knowledge Fallback (When question has no confident internal match)
   if (cleanQuery.length > 8 && !isConversationalQuery(userInput)) {
     return {
       intent: "CONVERSATIONAL",
       isError: false,
-      reply: `This isn't in our internal SOPs, but generally:\n\nRegarding "${userInput.trim()}": Standard payment and card network protocols handle interchange and terminal messaging through standardized banking switches. If this relates to a specific Pine Labs Smart POS error or operational task (such as Voiding a sale, processing EMI, settling a batch, or connecting to Wi-Fi), let me know the exact screen or prompt you are seeing!`
+      reply: `This isn't specifically covered in our internal SOPs, but generally:\n\nRegarding "${userInput.trim()}": Standard payment and card network protocols handle terminal messaging and transactions through standardized banking switches. If this relates to a specific Pine Labs Smart POS error or operational task (such as processing a Sale, Voiding a sale, processing EMI, settling a batch, or connecting to Wi-Fi), let me know the exact screen or prompt you are seeing!`
     };
   }
 
@@ -547,7 +565,13 @@ export async function askGemini(userInput, merchantContext = {}) {
     };
   }
 
-  // 2. Call server-side proxy
+  // 2. Short-circuit verified static SOP error matches before any network call
+  const sopResult = matchStaticSop(userInput, merchantContext);
+  if (sopResult && sopResult.isError) {
+    return sopResult;
+  }
+
+  // 3. Call server-side proxy
   try {
     const response = await fetch('/api/gemini', {
       method: 'POST',
@@ -567,7 +591,8 @@ export async function askGemini(userInput, merchantContext = {}) {
       return {
         intent: "CONVERSATIONAL",
         isError: false,
-        reply: parsed.reply || "PineShield is ready. Let me know if you experience any transaction or terminal issues."
+        reply: parsed.reply || "PineShield is ready. Let me know if you experience any transaction or terminal issues.",
+        groundingMetadata: parsed.groundingMetadata || null
       };
     }
 
