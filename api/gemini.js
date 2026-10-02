@@ -38,7 +38,12 @@ ${groundingContext}
 USER QUERY:
 "${userInput}"
 
-Follow system instructions. If the user question is related to the internal documents or Pine Labs POS operations, ground your answer strictly in the provided chunks. If it is general payments/POS knowledge not covered in internal documents, answer from general knowledge and prefix your reply with: "This isn't in our internal SOPs, but generally: ...". Output ONLY valid raw JSON with "intent", "isError", and matching fields. Do NOT include markdown fences.
+INSTRUCTIONS ON SYNTHESIS & CONTEXT USAGE:
+- Read the USER QUERY carefully. Synthesize a direct, natural response tailored specifically to what the merchant is asking and its scope.
+- Do NOT copy the retrieved chunks verbatim. Compose your own natural explanation using the chunks as factual grounding.
+- Match detail level: If the question is narrow (e.g. "do I need the receipt/ID for that?"), answer that specific detail directly without dumping the full step list. If broad, give the full steps.
+- If it is general payments/POS knowledge not covered in internal documents, answer from general knowledge and prefix your reply with: "This isn't in our internal SOPs, but generally: ...".
+- Output ONLY valid raw JSON with "intent", "isError", and matching fields. Do NOT include markdown fences.
 `;
 
   const primaryModel = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
@@ -56,7 +61,7 @@ Follow system instructions. If the user question is related to the internal docu
         body: JSON.stringify({
           system_instruction: { parts: [{ text: PINE_LABS_SYSTEM_PROMPT }] },
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.1, response_mime_type: 'application/json' }
+          generationConfig: { temperature: 0.35, response_mime_type: 'application/json' }
         })
       });
       if (res.ok) return res;
