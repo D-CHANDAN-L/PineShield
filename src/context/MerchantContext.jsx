@@ -515,7 +515,7 @@ export const MerchantProvider = ({ children }) => {
         sender: "agent",
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         isLoading: true,
-        text: "Consulting Pine Labs Sentinel AI (Gemini 2.5 Flash)..."
+        text: "Thinking..."
       }
     ]);
     setIsConsultingAi(true);

@@ -18,6 +18,7 @@ import { useMerchant } from '../../context/MerchantContext';
 import { MASTER_ERROR_RECORDS } from '../../data/sopRules';
 import EmailDraftModal from './EmailDraftModal';
 import CallSimulatorModal from '../WhatsApp/CallSimulatorModal';
+import MarkdownRenderer from '../Common/MarkdownRenderer';
 
 export default function TriageChatbot() {
   const {
@@ -112,7 +113,7 @@ export default function TriageChatbot() {
               className={`flex items-start gap-2.5 ${isAgent ? "justify-start" : "justify-end"} animate-in fade-in duration-150`}
             >
               {isAgent && (
-                <div className="w-7 h-7 rounded-lg bg-pine/20 border border-pine/30 flex items-center justify-center text-pine flex-shrink-0 mt-0.5 shadow-sm">
+                <div className={`w-7 h-7 rounded-lg bg-pine/20 border border-pine/30 flex items-center justify-center text-pine flex-shrink-0 mt-0.5 shadow-sm ${msg.isLoading ? 'sparkle-pulse-active' : ''}`}>
                   <Sparkles className="w-4 h-4"/>
                 </div>
               )}
@@ -123,18 +124,10 @@ export default function TriageChatbot() {
                   : "bg-pine text-slate-950 font-bold ml-auto"
               }`}>
                 {msg.isLoading ? (
-                  /* Spinner: Consulting Pine Labs Sentinel AI (Gemini 2.5 Flash)... */
-                  <div className="flex items-center space-x-3 py-2">
-                    <RefreshCw className="w-5 h-5 text-pine animate-spin flex-shrink-0" />
-                    <div>
-                      <div className="font-bold text-pine flex items-center gap-1.5 text-xs sm:text-sm">
-                        <Sparkles className="w-4 h-4 animate-pulse" />
-                        <span>Consulting Pine Labs Sentinel AI (Gemini 2.5 Flash)...</span>
-                      </div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                        Analyzing POS incident against Pine Labs Excel SOP Knowledge Base
-                      </div>
-                    </div>
+                  <div className="typing-indicator-container">
+                    <span className="typing-dot" />
+                    <span className="typing-dot" />
+                    <span className="typing-dot" />
                   </div>
                 ) : msg.errorRecord ? (
                   <div className="space-y-3">
@@ -230,6 +223,8 @@ export default function TriageChatbot() {
                       </span>
                     </div>
                   </div>
+                ) : isAgent ? (
+                  <MarkdownRenderer content={msg.text} />
                 ) : (
                   <div className="whitespace-pre-line leading-relaxed text-xs sm:text-sm">{msg.text}</div>
                 )}

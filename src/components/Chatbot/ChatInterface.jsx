@@ -3,6 +3,7 @@ import { Bot, Send, User, Sparkles, RefreshCcw, CheckCheck, MessageSquare } from
 import { useMerchant } from '../../context/MerchantContext';
 import { MASTER_ERROR_RECORDS, ERROR_TYPES } from '../../data/sopRules';
 import { BANK_ESCALATION_DIRECTORY } from '../../data/bankContacts';
+import MarkdownRenderer from '../Common/MarkdownRenderer';
 
 export default function ChatInterface() {
   const { 
@@ -181,6 +182,8 @@ export default function ChatInterface() {
                       <CheckCheck className="w-3.5 h-3.5 text-[#53BDEB]"/>
                     </div>
                   </div>
+                ) : isAgent ? (
+                  <MarkdownRenderer content={msg.text} />
                 ) : (
                   <div className="whitespace-pre-line leading-relaxed">{msg.text}</div>
                 )}

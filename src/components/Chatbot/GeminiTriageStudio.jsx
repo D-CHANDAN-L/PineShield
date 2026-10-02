@@ -21,9 +21,38 @@ import EmailDraftModal from './EmailDraftModal';
 import CallSimulatorModal from '../WhatsApp/CallSimulatorModal';
 import { askGemini } from '../../utils/gemini';
 import { useRouter } from '../../hooks/useRouter';
+import MarkdownRenderer from '../Common/MarkdownRenderer';
 
-// Common Cashier Triage Questions from SOP
+// Common Cashier Triage Questions & Operational How-To Guides from SOP
 const CASHIER_QUESTIONS = [
+  {
+    id: "q_void_txn",
+    question: "How do I void a transaction?",
+    query: "How do I void a transaction?",
+    badge: "How-To SOP",
+    subtext: "Step-by-step transaction cancellation procedure"
+  },
+  {
+    id: "q_wifi_fix",
+    question: "Wi-Fi is not working / How to connect?",
+    query: "Wi-Fi is not working",
+    badge: "How-To SOP",
+    subtext: "Priority connection & Android network troubleshooting"
+  },
+  {
+    id: "q_bank_emi",
+    question: "How to process a Bank EMI?",
+    query: "How to process Bank EMI?",
+    badge: "How-To SOP",
+    subtext: "10-step credit/debit EMI & tenure selection"
+  },
+  {
+    id: "q_settle_batch",
+    question: "How to settle batch?",
+    query: "How to settle batch?",
+    badge: "How-To SOP",
+    subtext: "End-of-day batch settlement & summary slip"
+  },
   {
     id: "q_tid_present",
     question: 'Why does terminal show "TID NOT PRESENT"?',
@@ -141,7 +170,7 @@ export default function GeminiTriageStudio({ onNavigateToWhatsApp, onNavigateToS
         id: loadingId,
         sender: 'assistant',
         isLoading: true,
-        text: 'Consulting Google Gemini 3.8 Flash...',
+        text: 'Thinking...',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
@@ -787,7 +816,7 @@ export default function GeminiTriageStudio({ onNavigateToWhatsApp, onNavigateToS
                   className={`flex items-start gap-3.5 ${isAgent ? "justify-start" : "justify-end"} animate-in fade-in duration-150`}
                 >
                   {isAgent && (
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#00382B] to-[#00A859] text-white flex items-center justify-center flex-shrink-0 mt-1 shadow-sm">
+                    <div className={`w-8 h-8 rounded-full bg-gradient-to-tr from-[#00382B] to-[#00A859] text-white flex items-center justify-center flex-shrink-0 mt-1 shadow-sm ${msg.isLoading ? 'sparkle-pulse-active' : ''}`}>
                       <Sparkles className="w-4 h-4" />
                     </div>
                   )}
@@ -815,20 +844,19 @@ export default function GeminiTriageStudio({ onNavigateToWhatsApp, onNavigateToS
                         onNavigateToWhatsApp={onNavigateToWhatsApp}
                       />
                     ) : msg.isLoading ? (
-                      <div className="bg-white dark:bg-[#161D2B] border border-emerald-500/40 rounded-2xl p-4 shadow-sm flex items-center space-x-3 text-sm text-slate-800 dark:text-slate-200 animate-in fade-in">
-                        <RefreshCw className="w-5 h-5 text-pine animate-spin flex-shrink-0" />
-                        <div className="space-y-0.5">
-                          <div className="font-bold flex items-center gap-1.5 text-pine">
-                            <Sparkles className="w-4 h-4 text-pine animate-pulse" />
-                            <span>Consulting Google Gemini 3.8 Flash...</span>
-                          </div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                            Analyzing POS incident against Pine Labs Excel SOP Knowledge Base
-                          </div>
+                      <div className="bg-white dark:bg-[#161D2B] border border-slate-200 dark:border-[#243044] rounded-2xl px-4 py-3.5 shadow-sm inline-flex items-center animate-in fade-in">
+                        <div className="typing-indicator-container">
+                          <span className="typing-dot" />
+                          <span className="typing-dot" />
+                          <span className="typing-dot" />
                         </div>
                       </div>
+                    ) : isAgent ? (
+                      <div className="bg-white dark:bg-[#161D2B] border border-slate-200 dark:border-[#243044] rounded-2xl p-4 shadow-sm text-sm leading-relaxed">
+                        <MarkdownRenderer content={msg.text} />
+                      </div>
                     ) : (
-                      <div className="bg-white dark:bg-[#161D2B] border border-slate-200 dark:border-[#243044] rounded-2xl p-4 shadow-sm text-sm">
+                      <div className="text-sm whitespace-pre-wrap leading-relaxed">
                         {msg.text}
                       </div>
                     )}

@@ -1,32 +1,80 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import { handleWhatsAppDispatch } from './src/services/whatsappGateway.js'
+import dotenv from 'dotenv'
+
+dotenv.config()
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [
-    react(),
-    {
-      name: 'sentinel-whatsapp-api-middleware',
-      configureServer(server) {
-        server.middlewares.use(async (req, res, next) => {
-          // Handle POST /api/send-whatsapp & /api/whatsapp/send
-          if ((req.url === '/api/send-whatsapp' || req.url === '/api/whatsapp/send') && req.method === 'POST') {
-            let body = '';
-            req.on('data', chunk => { body += chunk; });
-            req.on('end', async () => {
-              try {
-                const parsed = JSON.parse(body || '{}');
-                const result = await handleWhatsAppDispatch(parsed);
-                res.writeHead(result.status, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify(result.data));
-              } catch (e) {
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: e.message || 'Internal dispatch error' }));
-              }
-            });
-            return;
-          }
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  // Explicitly ensure process.env has server-side API keys in local development
+  if (env.GEMINI_API_KEY) process.env.GEMINI_API_KEY = env.GEMINI_API_KEY
+  if (env.GOOGLE_API_KEY) process.env.GOOGLE_API_KEY = env.GOOGLE_API_KEY
+  if (env.GEMINI_MODEL) process.env.GEMINI_MODEL = env.GEMINI_MODEL
+
+  return {
+    plugins: [
+      react(),
+      {
+        name: 'sentinel-whatsapp-api-middleware',
+        configureServer(server) {
+          server.middlewares.use(async (req, res, next) => {
+            // Handle POST /api/send-whatsapp & /api/whatsapp/send
+            if ((req.url === '/api/send-whatsapp' || req.url === '/api/whatsapp/send') && req.method === 'POST') {
+              let body = '';
+              req.on('data', chunk => { body += chunk; });
+              req.on('end', async () => {
+                try {
+                  const parsed = JSON.parse(body || '{}');
+                  const result = await handleWhatsAppDispatch(parsed);
+                  res.writeHead(result.status, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify(result.data));
+                } catch (e) {
+                  res.writeHead(500, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ error: e.message || 'Internal dispatch error' }));
+                }
+              });
+              return;
+            }
+
+            // Handle POST /api/gemini
+            if (req.url === '/api/gemini' && req.method === 'POST') {
+              let body = '';
+              req.on('data', chunk => { body += chunk; });
+              req.on('end', async () => {
+                try {
+                  const parsed = JSON.parse(body || '{}');
+                  const fakeReq = { method: 'POST', body: parsed };
+                  const fakeRes = {
+                    statusCode: 200,
+                    status(code) {
+                      this.statusCode = code;
+                      return this;
+                    },
+                    json(data) {
+                      res.writeHead(this.statusCode || 200, { 'Content-Type': 'application/json' });
+                      res.end(JSON.stringify(data));
+                    }
+                  };
+
+                  const resolvedKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || env.GEMINI_API_KEY || env.GOOGLE_API_KEY;
+                  if (!resolvedKey || resolvedKey.trim() === '' || resolvedKey.trim() === 'your_gemini_api_key_here') {
+                    console.error('[Vite Dev Middleware] ERROR: GEMINI_API_KEY is missing or unconfigured in .env! Please set GEMINI_API_KEY in .env and restart Vite.');
+                  } else {
+                    console.log('[Vite Dev Middleware] GEMINI_API_KEY detected (presence verified). Forwarding to /api/gemini handler...');
+                  }
+
+                  const geminiHandler = (await import('./api/gemini.js')).default;
+                  await geminiHandler(fakeReq, fakeRes);
+                } catch (e) {
+                  console.error('[Vite Dev Middleware] Error handling /api/gemini:', e);
+                  res.writeHead(500, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ error: e.message || 'Internal Gemini proxy error' }));
+                }
+              });
+              return;
+            }
 
           // Handle GET /api/gateway-status
           if (req.url === '/api/gateway-status' && req.method === 'GET') {
@@ -59,5 +107,6 @@ export default defineConfig({
         });
       }
     }
-  ],
-})
+  ]
+};
+});
